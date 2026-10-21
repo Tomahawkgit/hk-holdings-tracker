@@ -1,0 +1,23 @@
+{
+  "stocks": [
+    {"code": "01024", "name": "快手-W", "listed": "2021-02-05", "lockups": []},
+    {"code": "02026", "name": "小马智行-W", "listed": "2025-11-06", "lockups": [
+      {"date": "2026-05-06", "shares": 5179300, "note": "基石投资者 6 个月禁售期届满（约 517.93 万股）"},
+      {"date": "2026-11-06", "shares": null, "note": "控股股东及 IPO 前股东 12 个月禁售期届满（上市规则 10.07；规模详见招股书，红杉、丰田等为重要股东）"}
+    ]},
+    {"code": "00700", "name": "腾讯控股", "listed": "2004-06-16", "lockups": []},
+    {"code": "01211", "name": "比亚迪股份", "listed": "2002-07-31", "lockups": []},
+    {"code": "02513", "name": "智谱", "listed": "2026-01-08", "lockups": [
+      {"date": "2026-07-07", "shares": 25681600, "note": "基石投资者及领航资深独立投资者 6 个月禁售期届满（2568.16 万股，占总股本约 5.76%）"},
+      {"date": "2027-01-07", "shares": null, "note": "全体现有股东 12 个月禁售期届满（适用中国法律规定，以境内股东H股为主）"}
+    ]},
+    {"code": "00100", "name": "MINIMAX-W", "listed": "2026-01-09", "lockups": [
+      {"date": "2026-07-09", "shares": 153000000, "note": "基石投资者及上市前老股东 6 个月锁仓届满（约 1.53 亿股，占总股本逾 48%）"},
+      {"date": "2027-01-09", "shares": null, "note": "控股股东 12 个月禁售期届满（上市规则 10.07 一般性要求，以公司公告为准）"}
+    ]}
+  ],
+  "ccass_url": "https://www3.hkexnews.hk/sdw/search/searchsdw_c.aspx",
+  "eastmoney_url": "https://datacenter-web.eastmoney.com/api/data/v1/get",
+  "request_interval_sec": 2.0,
+  "months_back": 12
+}
