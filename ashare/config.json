@@ -1,0 +1,19 @@
+{
+  "stocks": [
+    {"code": "300274", "secucode": "300274.SZ", "name": "阳光电源"}
+  ],
+  "request_interval_sec": 1.5,
+  "margin_days": 250,
+  "lhb_days": 365,
+  "holder_num_points": 16,
+  "layer_map": {
+    "300274": {
+      "曹仁贤": "industrial",
+      "阳光电源股份有限公司回购专用证券账户": "industrial",
+      "香港中央结算有限公司": "foreign",
+      "阿布达比投资局": "foreign",
+      "科威特政府投资局": "foreign"
+    }
+  },
+  "layer_rules_note": "关键词兜底：中央结算/QFII类→foreign；基金/ETF/保险/社保/资管/信托→institution；集团/控股/投资/回购专户→industrial；2-4字个人名→retail；其余→unknown。unknown 记入 unmapped_holders.log 供人工复核后补进 layer_map。"
+}
