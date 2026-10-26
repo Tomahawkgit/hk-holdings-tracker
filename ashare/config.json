@@ -1,6 +1,7 @@
 {
   "stocks": [
-    {"code": "300274", "secucode": "300274.SZ", "name": "阳光电源"}
+    {"code": "300274", "secucode": "300274.SZ", "name": "阳光电源"},
+    {"code": "002624", "secucode": "002624.SZ", "name": "完美世界"}
   ],
   "request_interval_sec": 1.5,
   "margin_days": 250,
