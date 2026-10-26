@@ -58,12 +58,35 @@ def _pct_change_str(v):
     return str(v)
 
 
+FULL_CALIBER_MD = ("06-30", "12-31")  # 基金全量持仓仅中报/年报披露
+
+
+def _full_caliber_periods(orgs):
+    """机构持仓的全口径期（新→旧）。"""
+    return [d for d in sorted(orgs.keys(), reverse=True) if d[5:10] in FULL_CALIBER_MD]
+
+
+def _org_delta(orgs, full_periods):
+    """相邻两个全口径期的合计占比差（pct）。不足两期返回 None。"""
+    if len(full_periods) < 2:
+        return None
+    def total_ratio(date_key):
+        for o in orgs.get(date_key, []):
+            if o.get("name") == "合计":
+                return o.get("shares_ratio")
+        return None
+    cur, prev = total_ratio(full_periods[0]), total_ratio(full_periods[1])
+    if cur is None or prev is None:
+        return None
+    return round(cur - prev, 2)
+
+
 def build_structure(stock):
     """季度结构层：十大流通股东（主）+ 十大股东（辅）+ 机构分类汇总。返回 (structure, compare)。"""
     code, secucode = stock["code"], stock["secucode"]
     free = em_fetch.fetch_top_holders(secucode, free=True, periods=2)
     total = em_fetch.fetch_top_holders(secucode, free=False, periods=2)
-    orgs = em_fetch.fetch_org_holdings(secucode, periods=2)
+    orgs = em_fetch.fetch_org_holdings(secucode, periods=8)
     if not free and not total:
         return None, None
 
@@ -119,8 +142,16 @@ def build_structure(stock):
             "delta": (round((nb_cur or {}).get("pct_float", 0) - (nb_prev or {}).get("pct_float", 0), 2)
                       if nb_cur and nb_prev and nb_cur.get("pct_float") is not None and nb_prev.get("pct_float") is not None else None),
         },
-        "org_holdings": orgs.get(cur) or orgs.get(sorted(orgs.keys(), reverse=True)[0]) if orgs else [],
-        "org_as_of": sorted(orgs.keys(), reverse=True)[0] if orgs else None,
+        # 机构分类汇总：只选中报/年报全口径期展示；Q1/Q3 为基金重仓口径且季末后数周内不完整，
+        # 跨口径对比会产生 -30pct 级的伪信号。delta 由相邻两个全口径期自行计算。
+        "org_holdings": (lambda full: orgs.get(full[0], []) if full else [])(_full_caliber_periods(orgs)),
+        "org_as_of": (lambda full: full[0] if full else None)(_full_caliber_periods(orgs)),
+        "org_delta": (lambda full: _org_delta(orgs, full) if full else None)(_full_caliber_periods(orgs)),
+        "org_holdings_prev": (lambda full: orgs.get(full[1], []) if full and len(full) > 1 else [])(_full_caliber_periods(orgs)),
+        "org_partial_note": (lambda full, allp: (
+            f"已有更新的 {allp[0]} 季报数据，但为基金重仓口径（不完整），面板仍以 {full[0]} 全口径为准"
+            if full and allp and allp[0] > full[0] else None
+        ))(_full_caliber_periods(orgs), sorted(orgs.keys(), reverse=True)),
     }
     compare = {"cur": cur, "prev": prev, "cur_items": cur_items, "prev_items": prev_items}
     return structure, compare
