@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A股资金结构 · 宏观股债观察看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --line:#eceef5;
+  --line2:#e2e4f0;
+  --ink:#1b1e30;
+  --sub:#6b7191;
+  --faint:#9aa0b8;
+  --violet:#6c5ce7;
+  --violet-d:#5548c8;
+  --violet-l:#8f84e8;
+  --violet-bg:#f3f1fe;
+  --violet-pill:#eeecfd;
+  --green:#17a06b; --green-bg:#e3f6ec;
+  --red:#d95050;  --red-bg:#fdeaea;
+  --amber:#c98a12; --amber-bg:#fdf3e0;
+  --gray-bg:#f0f1f6;
+  --sans:'Inter','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --shadow:0 1px 2px rgba(27,30,48,.04),0 4px 14px rgba(27,30,48,.05);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-feature-settings:"tnum";
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(108,92,231,.18)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d5d8e6;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#b9bed4}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  position:fixed;top:0;left:0;bottom:0;width:224px;z-index:100;
+  background:var(--card);
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;
+  padding:22px 14px 18px;
+}
+.logo{display:flex;align-items:center;gap:10px;padding:0 8px 20px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.logo .lg-icon{
+  width:34px;height:34px;border-radius:10px;flex:none;
+  background:linear-gradient(135deg,#7a6cf0,#5548c8);
+  display:flex;align-items:center;justify-content:center;
+}
+.logo .lg-name{font-size:13.5px;font-weight:700;letter-spacing:.02em}
+.logo .lg-sub{font-size:9.5px;color:var(--faint);letter-spacing:.14em;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav .nav-label{font-size:10px;color:var(--faint);letter-spacing:.18em;padding:10px 10px 6px}
+.nav a{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:9px;
+  color:var(--sub);text-decoration:none;font-size:13px;font-weight:500;
+  transition:background .15s var(--ease),color .15s var(--ease);
+}
+.nav a svg{flex:none;opacity:.75}
+.nav a:hover{background:var(--violet-bg);color:var(--violet-d)}
+.nav a.active{background:var(--violet-pill);color:var(--violet-d)}
+.nav a.lvl1{font-weight:700;color:var(--ink);font-size:13.5px}
+.nav a.lvl1.active{color:var(--violet-d)}
+.nav a.sub{padding:6px 10px 6px 37px;font-size:12px;font-weight:500;color:var(--sub)}
+.side-foot{margin-top:auto;padding:14px 10px 0;border-top:1px solid var(--line);font-size:10.5px;color:var(--faint);line-height:1.9}
+
+/* ---------- main frame ---------- */
+.main{margin-left:224px;min-height:100vh}
+.topbar{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:20px 28px 0;max-width:1380px;margin:0 auto;
+}
+.topbar h1{font-size:21px;font-weight:800;letter-spacing:.01em}
+.topbar .tb-sub{font-size:11.5px;color:var(--faint);margin-top:2px}
+.tb-pills{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:999px;
+  font-size:11px;font-weight:600;white-space:nowrap;
+}
+.pill i{width:6px;height:6px;border-radius:50%;flex:none;font-style:normal}
+.pill.g{background:var(--green-bg);color:var(--green)} .pill.g i{background:var(--green)}
+.pill.r{background:var(--red-bg);color:var(--red)}     .pill.r i{background:var(--red)}
+.pill.a{background:var(--amber-bg);color:var(--amber)} .pill.a i{background:var(--amber)}
+.pill.v{background:var(--violet-pill);color:var(--violet-d)} .pill.v i{background:var(--violet)}
+.pill.o{background:var(--gray-bg);color:var(--faint)}  .pill.o i{background:var(--faint)}
+
+.focusbar{
+  width:calc(100% - 56px);max-width:1324px;margin:16px auto 0;
+  background:var(--violet-bg);
+  border:1px solid #e6e2fb;
+  border-radius:12px;
+  padding:11px 16px;
+  font-size:12px;color:var(--sub);
+  display:flex;flex-wrap:wrap;gap:6px 0;align-items:center;
+}
+.focusbar b{color:var(--violet-d)}
+.focusbar .fb-item{display:inline-flex;align-items:center}
+.focusbar .fb-sep{color:#c9c4ee;padding:0 12px}
+
+.wrap{padding:8px 28px 48px;max-width:1380px;margin:0 auto}
+section{margin-top:30px;scroll-margin-top:14px}
+.sec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.sec-head h2{font-size:16px;font-weight:700}
+.sec-head .hint{margin-left:auto;font-size:11px;color:var(--faint);text-align:right}
+
+/* ---------- hero ---------- */
+.hero{display:grid;grid-template-columns:1fr 1fr 300px;gap:16px}
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:14px;
+  box-shadow:var(--shadow);
+}
+.country{padding:18px 20px 14px}
+.c-head{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+.c-head .flag{font-size:10px;letter-spacing:.2em;color:var(--faint);font-weight:600}
+.c-head h3{font-size:17px;font-weight:800}
+.c-head .state{margin-left:auto}
+.c-sub{font-size:11.5px;color:var(--sub);margin:6px 0 10px;min-height:3.2em}
+.c-sub b{color:var(--ink)}
+.clock-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.clock-box{text-align:center}
+.cb-title{font-size:10px;color:var(--faint);letter-spacing:.12em;margin-bottom:4px;font-weight:600}
+.quad{width:100%;max-width:212px;height:auto;display:block;margin:0 auto}
+.q-frame{fill:var(--bg);stroke:var(--line2);stroke-width:1}
+.q-mid{stroke:#dcdfea;stroke-width:1;stroke-dasharray:3 3}
+.q-label{font-size:11px;fill:var(--faint);letter-spacing:2px}
+.q-axis{font-size:9px;fill:var(--faint);letter-spacing:1px}
+.q-cur{font-size:10px;font-weight:700}
+.q-rot{fill:none;stroke:#c9cde0;stroke-width:1;stroke-dasharray:2 3}
+.q-move{fill:none;stroke-width:1.4;stroke-dasharray:4 3}
+.q-halo{animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.14}50%{opacity:.3}}
+.valve{
+  margin-top:12px;padding-top:11px;
+  border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--sub);
+}
+.valve .v-label{color:var(--faint);font-size:10px;letter-spacing:.14em;font-weight:600;white-space:nowrap;flex:none}
+.valve .v-note{margin-left:auto;font-size:11px;text-align:right;color:var(--sub)}
+
+/* gradient summary card */
+.gcard{
+  border-radius:14px;
+  background:linear-gradient(155deg,#7a6cf0 0%,#5b4bd4 55%,#4a3cbb 100%);
+  color:#fff;
+  padding:20px 20px 16px;
+  box-shadow:0 8px 24px rgba(85,72,200,.28);
+  display:flex;flex-direction:column;
+  position:relative;overflow:hidden;
+}
+.gcard::before{
+  content:"";position:absolute;right:-46px;top:-46px;width:170px;height:170px;border-radius:50%;
+  background:rgba(255,255,255,.09);
+}
+.gcard::after{
+  content:"";position:absolute;right:-14px;top:34px;width:90px;height:90px;border-radius:50%;
+  background:rgba(255,255,255,.07);
+}
+.g-title{font-size:11px;letter-spacing:.18em;color:rgba(255,255,255,.75);font-weight:600}
+.g-big{font-size:19px;font-weight:800;margin:6px 0 2px}
+.g-sub{font-size:11.5px;color:rgba(255,255,255,.8);line-height:1.6}
+.g-div{height:1px;background:rgba(255,255,255,.22);margin:13px 0}
+.g-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;padding:4.5px 0}
+.g-row .k{color:rgba(255,255,255,.72)}
+.g-row .v{font-weight:700;font-size:13.5px}
+.g-foot{margin-top:auto;padding-top:12px;font-size:10.5px;color:rgba(255,255,255,.72);border-top:1px solid rgba(255,255,255,.22);line-height:1.8}
+
+/* ---------- states ---------- */
+.states-rows{display:flex;flex-direction:column;gap:12px}
+.state-row{padding:15px 18px}
+.sr-title{font-size:11px;color:var(--faint);letter-spacing:.1em;margin-bottom:10px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  font-size:12px;padding:5px 12px;border-radius:999px;
+  background:var(--gray-bg);color:var(--sub);font-weight:500;
+}
+.chip .n{opacity:.6;margin-right:5px;font-size:10.5px}
+.chip.on{background:var(--violet-d);color:#fff;font-weight:700;box-shadow:0 3px 10px rgba(85,72,200,.3)}
+.chip.on .n{opacity:.75}
+.chip.on.us{background:var(--violet-l);box-shadow:0 3px 10px rgba(143,132,232,.35)}
+.sr-note{font-size:11.5px;color:var(--sub);margin-top:10px}
+.sr-note b{color:var(--ink)}
+
+/* ---------- indicator cards ---------- */
+.group{margin-bottom:20px}
+.group-title{
+  font-size:11px;letter-spacing:.14em;color:var(--sub);font-weight:700;
+  margin-bottom:10px;display:flex;align-items:center;gap:10px;
+}
+.group-title::after{content:"";flex:1;height:1px;background:var(--line2)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:12px}
+.ic{padding:14px 16px 12px;transition:box-shadow .15s var(--ease),transform .15s var(--ease)}
+.ic:hover{box-shadow:0 4px 18px rgba(27,30,48,.09);transform:translateY(-1px)}
+.ic .c-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ic .c-name{font-size:11.5px;color:var(--sub);font-weight:600}
+.ic .c-pill{margin-left:auto}
+.ic .c-val{font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1.15;color:var(--ink)}
+.ic .c-val small{font-size:13px;font-weight:600;color:var(--sub);margin-left:2px}
+.ic .c-delta{
+  display:inline-block;margin-left:8px;font-size:10.5px;font-weight:700;
+  padding:1px 7px;border-radius:999px;background:var(--gray-bg);color:var(--sub);
+  vertical-align:4px;
+}
+.ic .c-rule{font-size:10.5px;color:var(--faint);margin-top:7px;line-height:1.55}
+.ic .c-ts{font-size:9.5px;color:var(--faint);margin-top:7px;letter-spacing:.04em;opacity:.85}
+.ic.pending{border-style:dashed;border-color:var(--line2);box-shadow:none}
+.ic.pending .c-val{font-size:16px;color:var(--faint);padding:5px 0 6px}
+
+/* ---------- alerts ---------- */
+.alerts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.alert{padding:15px 18px}
+.alert .a-tag{margin-bottom:6px}
+.alert .a-title{font-size:13.5px;font-weight:700;margin-bottom:4px}
+.alert .a-body{font-size:11.5px;color:var(--sub);line-height:1.65}
+.alert .a-body b{color:var(--ink)}
+
+/* ---------- calendar ---------- */
+.calcard{padding:4px 0 2px;overflow:hidden}
+table.cal{width:100%;border-collapse:collapse;font-size:12.5px}
+.cal th{
+  text-align:left;font-size:10.5px;letter-spacing:.1em;color:var(--faint);font-weight:600;
+  padding:10px 18px;border-bottom:1px solid var(--line);
+}
+.cal td{padding:9.5px 18px;border-bottom:1px solid var(--line);color:var(--sub);vertical-align:top}
+.cal tr:last-child td{border-bottom:none}
+.cal .d{color:var(--ink);font-weight:600;white-space:nowrap}
+.cal .star{color:var(--violet);letter-spacing:1.5px;white-space:nowrap;font-size:11px}
+.cal .evt{color:var(--ink);font-weight:500}
+.cal tr.hot td{background:var(--violet-bg)}
+.cal tr.hot .d{color:var(--violet-d)}
+
+/* ---------- footer ---------- */
+.foot{
+  margin-top:34px;border-top:1px solid var(--line2);padding-top:18px;
+  font-size:11px;color:var(--faint);line-height:2;
+}
+.foot .rules{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:8px}
+.foot .rules span{color:var(--sub)}
+.foot .rules b{color:var(--violet-d);font-weight:600}
+
+/* ---------- responsive ---------- */
+@media(max-width:1180px){
+  .hero{grid-template-columns:1fr 1fr}
+  .gcard{grid-column:1/-1;min-height:0}
+}
+@media(max-width:960px){
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .hero{grid-template-columns:1fr}
+  .alerts{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .wrap{padding:6px 14px 40px}
+  .topbar{padding:16px 14px 0}
+  .focusbar{width:auto;margin:14px 14px 0}
+  .ic .c-val{font-size:22px}
+  .cal .col-note{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .q-halo{animation:none}
+  html{scroll-behavior:auto}
+}
+
+
+/* ---------- embed page ---------- */
+.embed-card{max-width:920px;margin:18px auto 0;padding:10px 6px;overflow:hidden}
+.embed-card iframe{width:100%;border:0;display:block;min-height:880px}
+.embed-note{max-width:920px;margin:10px auto 0;font-size:11px;color:var(--faint);line-height:1.8;padding:0 4px}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">
+    <span class="lg-icon">
+      <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+        <rect x="1.5" y="1.5" width="15" height="15" rx="3.5" stroke="#fff" stroke-width="1.6"/>
+        <line x1="9" y1="1.5" x2="9" y2="16.5" stroke="#fff" stroke-width="1.2" opacity=".7"/>
+        <line x1="1.5" y1="9" x2="16.5" y2="9" stroke="#fff" stroke-width="1.2" opacity=".7"/>
+        <circle cx="5.6" cy="5.4" r="2.1" fill="#fff"/>
+      </svg>
+    </span>
+    <span>
+      <div class="lg-name">宏观股债观察</div>
+      <div class="lg-sub">Macro Sentinel</div>
+    </span>
+  </div>
+  <nav class="nav">
+    <div class="nav-label">看板板块</div>
+    <a href="index.html" class="lvl1">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1.5 8h2.6l1.8-4.2 3 8.4 1.8-4.2h2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      宏观信号观察</a>
+    <a href="holdings.html" class="lvl1">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.4" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.6V8l5.1 3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      港股资金结构</a>
+    <a href="ashare.html" class="lvl1 active">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.6" y="1.6" width="12.8" height="12.8" rx="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 11.2V8.6M8 11.2V5M11 11.2V7.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      A股资金结构</a>
+  </nav>
+  <div class="side-foot">
+    数据截至 2026-10-23<br>
+    来源：东方财富·公开信息交叉验证<br>
+    v3 · 三板块
+  </div>
+</aside>
+
+<div class="main">
+<header class="topbar">
+  <div>
+    <h1>A股资金结构</h1>
+    <div class="tb-sub">A股五层资金结构面板 · 产业资本 / 外资 / 境内机构 / 游资 / 散户分层跟踪</div>
+  </div>
+  <div class="tb-pills">
+    <span class="pill v"><i></i>2 只标的</span>
+    <span class="pill g"><i></i>GitHub 云端数据源</span>
+    <span class="pill o"><i></i>周更+季更混合频率</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <div class="card embed-card">
+      <iframe id="hf" src="ashare_dashboard.html" title="A股资金结构五层面板" scrolling="no"></iframe>
+    </div>
+    <div class="embed-note">数据由 GitHub 云端任务自动产出（两融/龙虎榜/事件周更，股东/机构/户数随季报更新），页面打开时实时拉取最新版本（云端 → 站内文件 → 内嵌数据三级兜底）；各层数据频率与期日以图内卡片标注为准。五层口径划分、缺口说明及免责声明详见图内底部。</div>
+  </section>
+</main>
+</div>
+
+<script>
+(function(){
+  var f = document.getElementById('hf');
+  function rs(){
+    try {
+      var h = f.contentDocument.documentElement.scrollHeight;
+      if (h > 300) f.style.height = (h + 8) + 'px';
+    } catch(e) { f.style.height = '1400px'; }
+  }
+  f.addEventListener('load', function(){ rs(); setTimeout(rs, 600); setTimeout(rs, 1800); });
+  window.addEventListener('resize', rs);
+})();
+</script>
+</body>
+</html>
