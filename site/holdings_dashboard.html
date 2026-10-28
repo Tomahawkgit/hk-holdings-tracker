@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>港股持仓结构周度跟踪</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  .wrap {
+    font-family: var(--kimi-font-sans, sans-serif);
+    color: var(--kimi-color-text-primary);
+    padding-block-start: var(--kimi-space-4);
+    padding-inline: var(--kimi-space-4);
+    padding-block-end: var(--kimi-space-4);
+    width: 100%;
+    box-sizing: border-box;
+  }
+  button, input, select, textarea { font: inherit; }
+  svg text { font-family: var(--kimi-font-sans, sans-serif); }
+
+  .head-title { font-size: 17px; font-weight: 500; line-height: 24px; }
+  .head-sub { font-size: 12px; color: var(--kimi-color-text-tertiary); margin-top: var(--kimi-space-1); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: var(--kimi-space-2); margin-top: var(--kimi-space-3); }
+
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: var(--kimi-space-4);
+    margin-top: var(--kimi-space-4); align-items: baseline;
+  }
+  .meta-item .v { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .meta-item .k { font-size: 12px; color: var(--kimi-color-text-tertiary); margin-top: 2px; }
+
+  .section { margin-top: var(--kimi-space-5); }
+  .section-title { font-size: 14px; font-weight: 500; color: var(--kimi-color-text-secondary); }
+
+  /* 当前结构堆叠条 */
+  .stack-bar {
+    display: flex; height: 28px; border-radius: var(--kimi-radius-chip);
+    overflow: hidden; margin-top: var(--kimi-space-2);
+    border: 1px solid var(--kimi-color-border);
+  }
+  .stack-bar > div { height: 100%; }
+  .legend {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--kimi-space-1) var(--kimi-space-3); margin-top: var(--kimi-space-2);
+  }
+  .legend .li { display: flex; align-items: center; gap: var(--kimi-space-2); font-size: 12px; color: var(--kimi-color-text-secondary); }
+  .legend .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .legend .num { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--kimi-color-text-primary); }
+
+  .chart-legend { display: flex; flex-wrap: wrap; gap: var(--kimi-space-3); margin-top: var(--kimi-space-2); font-size: 12px; color: var(--kimi-color-text-secondary); }
+  .trend-head { display: flex; align-items: center; justify-content: space-between; gap: var(--kimi-space-3); }
+
+  /* 折线图悬浮浮层 */
+  .chart-wrap { position: relative; margin-top: var(--kimi-space-2); }
+  .chart-tip {
+    position: absolute; display: none; pointer-events: none; z-index: 2; min-width: 148px;
+    background: var(--kimi-color-surface-raised); border: 1px solid var(--kimi-color-border);
+    border-radius: var(--kimi-radius-input); padding: var(--kimi-space-2) var(--kimi-space-3);
+    font-size: 12px;
+  }
+  .chart-tip .tip-date { font-weight: 500; color: var(--kimi-color-text-primary); margin-bottom: var(--kimi-space-1); }
+  .chart-tip .tip-row { display: flex; align-items: center; gap: var(--kimi-space-2); color: var(--kimi-color-text-secondary); line-height: 18px; }
+  .chart-tip .tip-row .sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .chart-tip .tip-row .num { margin-left: auto; padding-left: var(--kimi-space-3); font-variant-numeric: tabular-nums; color: var(--kimi-color-text-primary); }
+  .badge-tip { white-space: pre-line; z-index: 10; max-width: 280px; line-height: 18px; }
+  .chart-legend .li { display: flex; align-items: center; gap: var(--kimi-space-1); }
+  .chart-legend .sw { width: 10px; height: 10px; border-radius: 3px; }
+
+  /* 中介明细表 */
+  .table-scroll { max-height: 216px; overflow-y: auto; margin-top: var(--kimi-space-2); border: 1px solid var(--kimi-color-border); border-radius: var(--kimi-radius-input); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 6px var(--kimi-space-3); text-align: left; }
+  th { font-size: 12px; color: var(--kimi-color-text-tertiary); font-weight: 400; position: sticky; top: 0; background: var(--kimi-color-surface); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr + tr td { border-top: 1px solid var(--kimi-color-border); }
+  td .nm { display: block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat { display: inline-flex; align-items: center; gap: var(--kimi-space-1); font-size: 12px; color: var(--kimi-color-text-secondary); }
+  .cat .sw { width: 8px; height: 8px; border-radius: 2px; }
+
+  .foot { margin-top: var(--kimi-space-4); font-size: 12px; color: var(--kimi-color-text-quaternary); }
+  .empty { margin-top: var(--kimi-space-5); font-size: 14px; color: var(--kimi-color-text-tertiary); }
+
+  /* SVG 折线与网格：宿主 kimi-svg-chart-* 类只设填充色，线条需自定义 stroke */
+  .st-1 { stroke: var(--kimi-chart-1); }
+  .st-2 { stroke: var(--kimi-chart-2); }
+  .st-4 { stroke: var(--kimi-chart-4); }
+  .st-5 { stroke: var(--kimi-chart-5); }
+  .grid-line { stroke: var(--kimi-color-text-quaternary); }
+
+</style>
+<style>
+  /* ===== 独立网页版垫片：替代 Kimi Work 宿主注入的设计系统 ===== */
+  :root {
+    --kimi-font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", sans-serif;
+    --kimi-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --kimi-color-text-primary: #1a1d21;
+    --kimi-color-text-secondary: #5c636e;
+    --kimi-color-text-tertiary: #8a919d;
+    --kimi-color-text-quaternary: #c3c9d2;
+    --kimi-color-surface: #ffffff;
+    --kimi-color-surface-muted: #f4f5f7;
+    --kimi-color-surface-raised: #ffffff;
+    --kimi-color-border: #e5e7eb;
+    --kimi-color-accent: #2563eb;
+    --kimi-color-warning: #b45309;
+    --kimi-color-positive: #15803d;
+    --kimi-color-danger: #dc2626;
+    --kimi-chart-1: #2563eb;
+    --kimi-chart-2: #dc2626;
+    --kimi-chart-3: #16a34a;
+    --kimi-chart-4: #7c3aed;
+    --kimi-chart-5: #6b7280;
+    --kimi-space-1: 4px; --kimi-space-2: 8px; --kimi-space-3: 12px; --kimi-space-4: 16px;
+    --kimi-space-5: 20px; --kimi-space-6: 24px; --kimi-space-7: 32px;
+    --kimi-radius-small: 4px; --kimi-radius-chip: 6px; --kimi-radius-button: 8px;
+    --kimi-radius-input: 10px; --kimi-radius-panel: 12px; --kimi-radius-large: 16px;
+    --kimi-radius-full: 999px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --kimi-color-text-primary: #eceef1;
+      --kimi-color-text-secondary: #a7adb8;
+      --kimi-color-text-tertiary: #7d8490;
+      --kimi-color-text-quaternary: #565d68;
+      --kimi-color-surface: #17191d;
+      --kimi-color-surface-muted: #22252b;
+      --kimi-color-surface-raised: #26292f;
+      --kimi-color-border: #33373f;
+      --kimi-chart-1: #5b8def; --kimi-chart-2: #ef5b5b; --kimi-chart-3: #3fbf72;
+      --kimi-chart-4: #a78bfa; --kimi-chart-5: #9aa1ac;
+      --kimi-color-accent: #5b8def; --kimi-color-warning: #d99a3d;
+    }
+  }
+  body { background: var(--kimi-color-surface); }
+  .wrap { max-width: 780px; margin: 0 auto; box-sizing: border-box; }
+
+  /* 宿主组件类的本地实现 */
+  .kimi-meta { font-size: 12px; color: var(--kimi-color-text-tertiary); }
+  .kimi-segmented {
+    display: inline-flex; gap: 2px; padding: 2px;
+    background: var(--kimi-color-surface-muted); border-radius: var(--kimi-radius-button);
+  }
+  .kimi-chip {
+    border: 1px solid var(--kimi-color-border); background: transparent;
+    color: var(--kimi-color-text-secondary); font-size: 13px; line-height: 20px;
+    padding: 3px 10px; border-radius: var(--kimi-radius-chip); cursor: pointer;
+  }
+  .kimi-chip:hover { color: var(--kimi-color-text-primary); }
+  .kimi-chip[aria-pressed="true"] {
+    background: var(--kimi-color-text-primary); border-color: var(--kimi-color-text-primary);
+    color: var(--kimi-color-surface);
+  }
+  .kimi-segmented .kimi-chip { border-color: transparent; }
+  .kimi-segmented .kimi-chip[aria-pressed="true"] { border-color: var(--kimi-color-text-primary); }
+  .kimi-status {
+    display: inline-flex; align-items: center; font-size: 12px; line-height: 18px;
+    padding: 1px 8px; border-radius: var(--kimi-radius-full);
+    background: var(--kimi-color-surface-muted); color: var(--kimi-color-text-tertiary);
+  }
+  .kimi-status--accent { background: color-mix(in srgb, var(--kimi-color-accent) 12%, transparent); color: var(--kimi-color-accent); }
+  .kimi-status--warning { background: color-mix(in srgb, var(--kimi-color-warning) 14%, transparent); color: var(--kimi-color-warning); }
+  .kimi-svg-text-secondary { fill: var(--kimi-color-text-tertiary); }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="head-title">港股持仓结构</div>
+  <div class="head-sub" id="headSub">加载中…</div>
+  <div class="chips" id="chips" role="group" aria-label="选择股票"></div>
+  <div id="body"></div>
+</div>
+
+<script>
+"use strict";
+var FALLBACK_DATA = {"updated": "2026-10-12", "stocks": [{"code": "01024", "name": "快手-W", "listed": "2021-02-05", "lockups": [], "current": {"date": "2026-10-10", "issued": 4304151598, "ccass_total_pct": 84.18, "buckets": {"southbound": 20.93, "foreign": 47.18, "chinese": 7.52, "local": 7.71, "mainland": 0.0, "other_ccass": 0.84, "non_ccass": 15.82}, "top": [{"name": "香港上海匯豐銀行有限公司", "cat": "foreign", "pct": 22.38, "shares": 963274364}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 13.38, "shares": 576070337}, {"name": "高盛(亞洲)證券有限公司", "cat": "foreign", "pct": 7.87, "shares": 338970729}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 7.55, "shares": 325048934}, {"name": "花旗銀行", "cat": "foreign", "pct": 6.81, "shares": 293435876}, {"name": "富途證券國際(香港)有限公司", "cat": "local", "pct": 4.91, "shares": 211666109}, {"name": "MORGAN STANLEY HONG KONG SECURITIES LTD", "cat": "foreign", "pct": 3.77, "shares": 162637341}, {"name": "中國銀行(香港)有限公司", "cat": "chinese", "pct": 2.83, "shares": 121927385}, {"name": "渣打銀行(香港)有限公司", "cat": "foreign", "pct": 2.2, "shares": 94717655}, {"name": "UBS SECURITIES HONG KONG LTD", "cat": "foreign", "pct": 2.0, "shares": 86282804}, {"name": "中國工商銀行(亞洲)有限公司", "cat": "chinese", "pct": 1.02, "shares": 44275354}, {"name": "恒生證券有限公司", "cat": "local", "pct": 0.69, "shares": 29982045}]}, "series": [{"date": "2025-10-31", "ccass_total": 82.79, "southbound": 15.82, "foreign": 58.64, "chinese": 4.01, "local": 3.7, "mainland": 0.0, "other_ccass": 0.62, "non_ccass": 17.21}, {"date": "2025-11-29", "ccass_total": 82.78, "southbound": 16.4, "foreign": 57.53, "chinese": 4.26, "local": 3.92, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 17.22}, {"date": "2025-12-31", "ccass_total": 82.94, "southbound": 16.63, "foreign": 57.17, "chinese": 4.42, "local": 4.03, "mainland": 0.0, "other_ccass": 0.69, "non_ccass": 17.06}, {"date": "2026-01-31", "ccass_total": 83.06, "southbound": 18.26, "foreign": 56.47, "chinese": 3.52, "local": 4.22, "mainland": 0.0, "other_ccass": 0.59, "non_ccass": 16.94}, {"date": "2026-02-28", "ccass_total": 83.52, "southbound": 18.35, "foreign": 55.86, "chinese": 4.01, "local": 4.71, "mainland": 0.0, "other_ccass": 0.59, "non_ccass": 16.48}, {"date": "2026-03-31", "ccass_total": 83.51, "southbound": 17.99, "foreign": 54.62, "chinese": 4.85, "local": 5.35, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 16.49}, {"date": "2026-04-30", "ccass_total": 83.58, "southbound": 18.43, "foreign": 53.33, "chinese": 5.38, "local": 5.67, "mainland": 0.0, "other_ccass": 0.77, "non_ccass": 16.42}, {"date": "2026-05-30", "ccass_total": 83.69, "southbound": 18.75, "foreign": 53.05, "chinese": 5.52, "local": 5.62, "mainland": 0.0, "other_ccass": 0.75, "non_ccass": 16.31}, {"date": "2026-06-30", "ccass_total": 83.73, "southbound": 17.93, "foreign": 53.51, "chinese": 5.88, "local": 5.67, "mainland": 0.0, "other_ccass": 0.74, "non_ccass": 16.27}, {"date": "2026-07-31", "ccass_total": 84.04, "southbound": 19.9, "foreign": 51.06, "chinese": 6.08, "local": 6.18, "mainland": 0.0, "other_ccass": 0.82, "non_ccass": 15.96}, {"date": "2026-08-31", "ccass_total": 84.17, "southbound": 20.07, "foreign": 48.7, "chinese": 7.25, "local": 7.3, "mainland": 0.0, "other_ccass": 0.85, "non_ccass": 15.83}, {"date": "2026-09-30", "ccass_total": 84.1, "southbound": 20.84, "foreign": 47.32, "chinese": 7.45, "local": 7.63, "mainland": 0.0, "other_ccass": 0.86, "non_ccass": 15.9}, {"date": "2026-10-10", "ccass_total": 84.18, "southbound": 20.93, "foreign": 47.18, "chinese": 7.52, "local": 7.71, "mainland": 0.0, "other_ccass": 0.84, "non_ccass": 15.82}], "weekly_series": [{"date": "2026-07-25", "ccass_total": 83.6, "southbound": 19.91, "foreign": 50.79, "chinese": 6.0, "local": 6.14, "mainland": 0.0, "other_ccass": 0.76, "non_ccass": 16.4}, {"date": "2026-07-31", "ccass_total": 84.04, "southbound": 19.9, "foreign": 51.06, "chinese": 6.08, "local": 6.18, "mainland": 0.0, "other_ccass": 0.82, "non_ccass": 15.96}, {"date": "2026-08-08", "ccass_total": 84.12, "southbound": 19.47, "foreign": 51.91, "chinese": 5.96, "local": 6.0, "mainland": 0.0, "other_ccass": 0.78, "non_ccass": 15.88}, {"date": "2026-08-15", "ccass_total": 84.12, "southbound": 19.33, "foreign": 51.54, "chinese": 6.22, "local": 6.27, "mainland": 0.0, "other_ccass": 0.76, "non_ccass": 15.88}, {"date": "2026-08-22", "ccass_total": 84.17, "southbound": 19.26, "foreign": 50.72, "chinese": 6.65, "local": 6.71, "mainland": 0.0, "other_ccass": 0.83, "non_ccass": 15.83}, {"date": "2026-08-29", "ccass_total": 84.17, "southbound": 20.01, "foreign": 48.82, "chinese": 7.19, "local": 7.28, "mainland": 0.0, "other_ccass": 0.87, "non_ccass": 15.83}, {"date": "2026-08-31", "ccass_total": 84.17, "southbound": 20.07, "foreign": 48.7, "chinese": 7.25, "local": 7.3, "mainland": 0.0, "other_ccass": 0.85, "non_ccass": 15.83}, {"date": "2026-09-12", "ccass_total": 84.18, "southbound": 20.21, "foreign": 48.35, "chinese": 7.34, "local": 7.43, "mainland": 0.0, "other_ccass": 0.85, "non_ccass": 15.82}, {"date": "2026-09-19", "ccass_total": 84.18, "southbound": 20.32, "foreign": 48.12, "chinese": 7.39, "local": 7.53, "mainland": 0.0, "other_ccass": 0.82, "non_ccass": 15.82}, {"date": "2026-09-25", "ccass_total": 84.09, "southbound": 20.73, "foreign": 47.42, "chinese": 7.46, "local": 7.63, "mainland": 0.0, "other_ccass": 0.85, "non_ccass": 15.91}, {"date": "2026-10-03", "ccass_total": 84.1, "southbound": 20.83, "foreign": 47.33, "chinese": 7.43, "local": 7.67, "mainland": 0.0, "other_ccass": 0.84, "non_ccass": 15.9}, {"date": "2026-10-10", "ccass_total": 84.18, "southbound": 20.93, "foreign": 47.18, "chinese": 7.52, "local": 7.71, "mainland": 0.0, "other_ccass": 0.84, "non_ccass": 15.82}], "southbound_daily": [{"date": "2024-10-14", "shares": 567972788, "ratio": 13.15}, {"date": "2024-10-17", "shares": 549513243, "ratio": 12.73}, {"date": "2024-10-23", "shares": 551389228, "ratio": 12.76}, {"date": "2024-10-28", "shares": 546106144, "ratio": 12.65}, {"date": "2024-11-01", "shares": 546132158, "ratio": 12.65}, {"date": "2024-11-06", "shares": 546903189, "ratio": 12.67}, {"date": "2024-11-12", "shares": 556403971, "ratio": 12.89}, {"date": "2024-11-15", "shares": 552373243, "ratio": 12.8}, {"date": "2024-11-21", "shares": 559258502, "ratio": 12.96}, {"date": "2024-11-26", "shares": 572705799, "ratio": 13.27}, {"date": "2024-12-02", "shares": 559518243, "ratio": 12.97}, {"date": "2024-12-05", "shares": 547269357, "ratio": 12.68}, {"date": "2024-12-11", "shares": 547653039, "ratio": 12.69}, {"date": "2024-12-16", "shares": 532354239, "ratio": 12.33}, {"date": "2024-12-20", "shares": 524444999, "ratio": 12.15}, {"date": "2024-12-27", "shares": 519214202, "ratio": 12.08}, {"date": "2025-01-03", "shares": 494799653, "ratio": 11.51}, {"date": "2025-01-08", "shares": 492072267, "ratio": 11.38}, {"date": "2025-01-14", "shares": 491302510, "ratio": 11.36}, {"date": "2025-01-17", "shares": 499346210, "ratio": 11.55}, {"date": "2025-01-23", "shares": 503458603, "ratio": 11.64}, {"date": "2025-02-05", "shares": 506560521, "ratio": 11.76}, {"date": "2025-02-11", "shares": 515604351, "ratio": 11.97}, {"date": "2025-02-14", "shares": 503643913, "ratio": 11.69}, {"date": "2025-02-20", "shares": 543764575, "ratio": 12.63}, {"date": "2025-02-25", "shares": 558908234, "ratio": 12.98}, {"date": "2025-03-03", "shares": 550723698, "ratio": 12.79}, {"date": "2025-03-06", "shares": 544283196, "ratio": 12.63}, {"date": "2025-03-12", "shares": 596848107, "ratio": 13.85}, {"date": "2025-03-17", "shares": 623687548, "ratio": 14.49}, {"date": "2025-03-21", "shares": 645605959, "ratio": 14.99}, {"date": "2025-03-26", "shares": 628879920, "ratio": 14.6}, {"date": "2025-04-01", "shares": 644552152, "ratio": 14.95}, {"date": "2025-04-07", "shares": 651339118, "ratio": 15.11}, {"date": "2025-04-11", "shares": 673511444, "ratio": 15.62}, {"date": "2025-04-16", "shares": 677021072, "ratio": 15.7}, {"date": "2025-04-24", "shares": 683820703, "ratio": 15.86}, {"date": "2025-04-29", "shares": 680226229, "ratio": 15.83}, {"date": "2025-05-08", "shares": 677566029, "ratio": 15.76}, {"date": "2025-05-13", "shares": 672894391, "ratio": 15.66}, {"date": "2025-05-19", "shares": 671084493, "ratio": 15.63}, {"date": "2025-05-22", "shares": 671444266, "ratio": 15.63}, {"date": "2025-05-28", "shares": 669398358, "ratio": 15.59}, {"date": "2025-06-03", "shares": 659410108, "ratio": 15.36}, {"date": "2025-06-09", "shares": 651847908, "ratio": 15.18}, {"date": "2025-06-12", "shares": 643013544, "ratio": 14.98}, {"date": "2025-06-18", "shares": 624546997, "ratio": 14.57}, {"date": "2025-06-23", "shares": 617351161, "ratio": 14.41}, {"date": "2025-06-27", "shares": 629750432, "ratio": 14.69}, {"date": "2025-07-03", "shares": 640634071, "ratio": 14.95}, {"date": "2025-07-09", "shares": 633260351, "ratio": 14.69}, {"date": "2025-07-14", "shares": 635968523, "ratio": 14.75}, {"date": "2025-07-18", "shares": 634640941, "ratio": 14.72}, {"date": "2025-07-23", "shares": 652210040, "ratio": 15.13}, {"date": "2025-07-29", "shares": 651987983, "ratio": 15.13}, {"date": "2025-08-01", "shares": 665972924, "ratio": 15.45}, {"date": "2025-08-07", "shares": 702988944, "ratio": 16.27}, {"date": "2025-08-12", "shares": 704938389, "ratio": 16.33}, {"date": "2025-08-18", "shares": 663309452, "ratio": 15.36}, {"date": "2025-08-21", "shares": 656325197, "ratio": 15.19}, {"date": "2025-08-27", "shares": 660063898, "ratio": 15.28}, {"date": "2025-09-01", "shares": 661803850, "ratio": 15.33}, {"date": "2025-09-05", "shares": 652705018, "ratio": 15.11}, {"date": "2025-09-10", "shares": 634463718, "ratio": 14.68}, {"date": "2025-09-16", "shares": 646637139, "ratio": 14.96}, {"date": "2025-09-19", "shares": 652351425, "ratio": 15.09}, {"date": "2025-09-25", "shares": 658115341, "ratio": 15.22}, {"date": "2025-09-30", "shares": 669864541, "ratio": 15.49}, {"date": "2025-10-14", "shares": 691431758, "ratio": 15.98}, {"date": "2025-10-17", "shares": 694008698, "ratio": 16.04}, {"date": "2025-10-23", "shares": 686229079, "ratio": 15.86}, {"date": "2025-10-28", "shares": 687228046, "ratio": 15.88}, {"date": "2025-11-04", "shares": 681875993, "ratio": 15.77}, {"date": "2025-11-07", "shares": 679584631, "ratio": 15.7}, {"date": "2025-11-13", "shares": 680508853, "ratio": 15.73}, {"date": "2025-11-18", "shares": 679836052, "ratio": 15.72}, {"date": "2025-11-24", "shares": 685755983, "ratio": 15.86}, {"date": "2025-11-27", "shares": 710503509, "ratio": 16.43}, {"date": "2025-12-03", "shares": 707680078, "ratio": 16.36}, {"date": "2025-12-08", "shares": 708566695, "ratio": 16.38}, {"date": "2025-12-12", "shares": 706105449, "ratio": 16.33}, {"date": "2025-12-17", "shares": 717445491, "ratio": 16.59}, {"date": "2025-12-23", "shares": 722093790, "ratio": 16.71}, {"date": "2025-12-30", "shares": 718662390, "ratio": 16.63}, {"date": "2026-01-07", "shares": 734386048, "ratio": 16.83}, {"date": "2026-01-12", "shares": 735600294, "ratio": 16.86}, {"date": "2026-01-16", "shares": 780607320, "ratio": 17.9}, {"date": "2026-01-21", "shares": 771227279, "ratio": 17.67}, {"date": "2026-01-27", "shares": 794026341, "ratio": 18.19}, {"date": "2026-01-30", "shares": 796974495, "ratio": 18.26}, {"date": "2026-02-05", "shares": 789224099, "ratio": 18.13}, {"date": "2026-02-10", "shares": 799940545, "ratio": 18.37}, {"date": "2026-02-24", "shares": 793339968, "ratio": 18.22}, {"date": "2026-02-27", "shares": 799001210, "ratio": 18.35}, {"date": "2026-03-05", "shares": 774573974, "ratio": 17.78}, {"date": "2026-03-10", "shares": 768938983, "ratio": 17.66}, {"date": "2026-03-16", "shares": 762369172, "ratio": 17.51}, {"date": "2026-03-19", "shares": 760480001, "ratio": 17.46}, {"date": "2026-03-25", "shares": 755527161, "ratio": 17.35}, {"date": "2026-03-30", "shares": 781322415, "ratio": 17.93}, {"date": "2026-04-08", "shares": 786551873, "ratio": 18.06}, {"date": "2026-04-13", "shares": 802796898, "ratio": 18.43}, {"date": "2026-04-17", "shares": 793942633, "ratio": 18.26}, {"date": "2026-04-22", "shares": 794000233, "ratio": 18.26}, {"date": "2026-04-28", "shares": 801002700, "ratio": 18.42}, {"date": "2026-05-06", "shares": 803416558, "ratio": 18.47}, {"date": "2026-05-12", "shares": 829879380, "ratio": 19.08}, {"date": "2026-05-15", "shares": 836459053, "ratio": 19.23}, {"date": "2026-05-21", "shares": 825085654, "ratio": 19.02}, {"date": "2026-05-27", "shares": 815587554, "ratio": 18.8}, {"date": "2026-06-02", "shares": 802678358, "ratio": 18.49}, {"date": "2026-06-05", "shares": 811350658, "ratio": 18.69}, {"date": "2026-06-11", "shares": 803682374, "ratio": 18.52}, {"date": "2026-06-16", "shares": 791744474, "ratio": 18.24}, {"date": "2026-06-23", "shares": 780097914, "ratio": 18.02}, {"date": "2026-06-26", "shares": 779693358, "ratio": 18.01}, {"date": "2026-07-03", "shares": 774816731, "ratio": 17.9}, {"date": "2026-07-08", "shares": 785246550, "ratio": 18.14}, {"date": "2026-07-14", "shares": 795822250, "ratio": 18.32}, {"date": "2026-07-17", "shares": 861775512, "ratio": 19.84}, {"date": "2026-07-23", "shares": 874136112, "ratio": 20.12}, {"date": "2026-07-28", "shares": 861563612, "ratio": 19.9}, {"date": "2026-08-03", "shares": 854955912, "ratio": 19.75}, {"date": "2026-08-06", "shares": 847454999, "ratio": 19.58}, {"date": "2026-08-12", "shares": 838313875, "ratio": 19.36}, {"date": "2026-08-17", "shares": 836006212, "ratio": 19.32}, {"date": "2026-08-21", "shares": 834060870, "ratio": 19.26}, {"date": "2026-08-26", "shares": 866538039, "ratio": 20.02}, {"date": "2026-09-01", "shares": 870865839, "ratio": 20.11}, {"date": "2026-09-04", "shares": 884000799, "ratio": 20.42}, {"date": "2026-09-10", "shares": 881061499, "ratio": 20.35}, {"date": "2026-09-15", "shares": 879149125, "ratio": 20.31}, {"date": "2026-09-21", "shares": 881156136, "ratio": 20.35}, {"date": "2026-09-24", "shares": 889672671, "ratio": 20.55}, {"date": "2026-10-08", "shares": 901119271, "ratio": 20.93}, {"date": "2026-10-09", "shares": 901119271, "ratio": 20.93}], "in_stock_connect": true, "verification_ok": true}, {"code": "02026", "name": "小马智行-W", "listed": "2025-11-06", "lockups": [{"date": "2026-05-06", "shares": 5179300, "note": "基石投资者 6 个月禁售期届满（约 517.93 万股）"}, {"date": "2026-11-06", "shares": null, "note": "控股股东及 IPO 前股东 12 个月禁售期届满（上市规则 10.07；规模详见招股书，红杉、丰田等为重要股东）"}], "current": {"date": "2026-10-10", "issued": 435184160, "ccass_total_pct": 49.46, "buckets": {"southbound": 2.53, "foreign": 45.12, "chinese": 0.89, "local": 0.58, "mainland": 0.0, "other_ccass": 0.34, "non_ccass": 50.54}, "top": [{"name": "德意志銀行", "cat": "foreign", "pct": 23.82, "shares": 103667097}, {"name": "香港上海匯豐銀行有限公司", "cat": "foreign", "pct": 8.27, "shares": 36022820}, {"name": "花旗銀行", "cat": "foreign", "pct": 4.72, "shares": 20554826}, {"name": "MLFE LTD", "cat": "foreign", "pct": 3.47, "shares": 15130501}, {"name": "高盛(亞洲)證券有限公司", "cat": "foreign", "pct": 2.45, "shares": 10694940}, {"name": "MORGAN STANLEY HONG KONG SECURITIES LTD", "cat": "foreign", "pct": 1.45, "shares": 6316032}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 1.34, "shares": 5843200}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 1.19, "shares": 5205800}, {"name": "UBS SECURITIES HONG KONG LTD", "cat": "foreign", "pct": 0.47, "shares": 2056528}, {"name": "富途證券國際(香港)有限公司", "cat": "local", "pct": 0.46, "shares": 2038053}, {"name": "中國國際金融香港證券有限公司", "cat": "chinese", "pct": 0.46, "shares": 2020942}, {"name": "ABN AMRO Clearing Bank N.V.", "cat": "foreign", "pct": 0.25, "shares": 1119800}]}, "series": [{"date": "2025-11-29", "ccass_total": 43.78, "southbound": 0.0, "foreign": 42.29, "chinese": 0.23, "local": 0.98, "mainland": 0.0, "other_ccass": 0.28, "non_ccass": 56.22}, {"date": "2025-12-31", "ccass_total": 45.57, "southbound": 0.0, "foreign": 44.59, "chinese": 0.11, "local": 0.61, "mainland": 0.0, "other_ccass": 0.26, "non_ccass": 54.43}, {"date": "2026-01-31", "ccass_total": 46.6, "southbound": 0.0, "foreign": 44.69, "chinese": 0.72, "local": 0.93, "mainland": 0.0, "other_ccass": 0.26, "non_ccass": 53.4}, {"date": "2026-02-28", "ccass_total": 46.6, "southbound": 0.0, "foreign": 44.67, "chinese": 0.76, "local": 0.9, "mainland": 0.0, "other_ccass": 0.27, "non_ccass": 53.4}, {"date": "2026-03-31", "ccass_total": 46.67, "southbound": 0.0, "foreign": 43.87, "chinese": 1.35, "local": 1.13, "mainland": 0.0, "other_ccass": 0.32, "non_ccass": 53.33}, {"date": "2026-04-30", "ccass_total": 46.67, "southbound": 0.0, "foreign": 43.81, "chinese": 1.4, "local": 1.13, "mainland": 0.0, "other_ccass": 0.33, "non_ccass": 53.33}, {"date": "2026-05-30", "ccass_total": 46.67, "southbound": 0.0, "foreign": 43.69, "chinese": 1.46, "local": 1.15, "mainland": 0.0, "other_ccass": 0.37, "non_ccass": 53.33}, {"date": "2026-06-30", "ccass_total": 46.67, "southbound": 1.61, "foreign": 42.01, "chinese": 1.51, "local": 1.17, "mainland": 0.0, "other_ccass": 0.37, "non_ccass": 53.33}, {"date": "2026-07-31", "ccass_total": 46.57, "southbound": 1.54, "foreign": 42.35, "chinese": 1.35, "local": 0.96, "mainland": 0.0, "other_ccass": 0.37, "non_ccass": 53.43}, {"date": "2026-08-31", "ccass_total": 46.57, "southbound": 1.85, "foreign": 42.49, "chinese": 1.17, "local": 0.73, "mainland": 0.0, "other_ccass": 0.33, "non_ccass": 53.43}, {"date": "2026-09-30", "ccass_total": 49.55, "southbound": 2.45, "foreign": 45.33, "chinese": 0.86, "local": 0.57, "mainland": 0.0, "other_ccass": 0.34, "non_ccass": 50.45}, {"date": "2026-10-10", "ccass_total": 49.46, "southbound": 2.53, "foreign": 45.12, "chinese": 0.89, "local": 0.58, "mainland": 0.0, "other_ccass": 0.34, "non_ccass": 50.54}], "weekly_series": [{"date": "2026-07-25", "ccass_total": 46.57, "southbound": 1.54, "foreign": 42.3, "chinese": 1.36, "local": 0.99, "mainland": 0.0, "other_ccass": 0.38, "non_ccass": 53.43}, {"date": "2026-07-31", "ccass_total": 46.57, "southbound": 1.54, "foreign": 42.35, "chinese": 1.35, "local": 0.96, "mainland": 0.0, "other_ccass": 0.37, "non_ccass": 53.43}, {"date": "2026-08-08", "ccass_total": 46.57, "southbound": 1.57, "foreign": 42.37, "chinese": 1.32, "local": 0.96, "mainland": 0.0, "other_ccass": 0.35, "non_ccass": 53.43}, {"date": "2026-08-15", "ccass_total": 46.57, "southbound": 1.66, "foreign": 42.45, "chinese": 1.2, "local": 0.93, "mainland": 0.0, "other_ccass": 0.33, "non_ccass": 53.43}, {"date": "2026-08-22", "ccass_total": 46.57, "southbound": 1.71, "foreign": 42.47, "chinese": 1.19, "local": 0.85, "mainland": 0.0, "other_ccass": 0.35, "non_ccass": 53.43}, {"date": "2026-08-29", "ccass_total": 46.57, "southbound": 1.83, "foreign": 42.5, "chinese": 1.17, "local": 0.73, "mainland": 0.0, "other_ccass": 0.34, "non_ccass": 53.43}, {"date": "2026-08-31", "ccass_total": 46.57, "southbound": 1.85, "foreign": 42.49, "chinese": 1.17, "local": 0.73, "mainland": 0.0, "other_ccass": 0.33, "non_ccass": 53.43}, {"date": "2026-09-12", "ccass_total": 49.55, "southbound": 2.13, "foreign": 45.65, "chinese": 0.85, "local": 0.57, "mainland": 0.0, "other_ccass": 0.35, "non_ccass": 50.45}, {"date": "2026-09-19", "ccass_total": 49.55, "southbound": 2.4, "foreign": 45.37, "chinese": 0.86, "local": 0.57, "mainland": 0.0, "other_ccass": 0.35, "non_ccass": 50.45}, {"date": "2026-09-25", "ccass_total": 49.55, "southbound": 2.45, "foreign": 45.31, "chinese": 0.87, "local": 0.59, "mainland": 0.0, "other_ccass": 0.33, "non_ccass": 50.45}, {"date": "2026-10-03", "ccass_total": 49.46, "southbound": 2.5, "foreign": 45.19, "chinese": 0.87, "local": 0.57, "mainland": 0.0, "other_ccass": 0.33, "non_ccass": 50.54}, {"date": "2026-10-10", "ccass_total": 49.46, "southbound": 2.53, "foreign": 45.12, "chinese": 0.89, "local": 0.58, "mainland": 0.0, "other_ccass": 0.34, "non_ccass": 50.54}], "southbound_daily": [{"date": "2026-06-08", "shares": 1076800, "ratio": 0.24}, {"date": "2026-06-11", "shares": 3419100, "ratio": 0.77}, {"date": "2026-06-17", "shares": 5329500, "ratio": 1.22}, {"date": "2026-06-23", "shares": 6610700, "ratio": 1.51}, {"date": "2026-06-29", "shares": 6979100, "ratio": 1.6}, {"date": "2026-07-03", "shares": 7068600, "ratio": 1.62}, {"date": "2026-07-09", "shares": 6819200, "ratio": 1.56}, {"date": "2026-07-14", "shares": 6801300, "ratio": 1.55}, {"date": "2026-07-20", "shares": 6979500, "ratio": 1.6}, {"date": "2026-07-23", "shares": 6705600, "ratio": 1.53}, {"date": "2026-07-29", "shares": 6937600, "ratio": 1.59}, {"date": "2026-08-03", "shares": 6797500, "ratio": 1.56}, {"date": "2026-08-07", "shares": 6888000, "ratio": 1.57}, {"date": "2026-08-12", "shares": 6828700, "ratio": 1.56}, {"date": "2026-08-18", "shares": 7302900, "ratio": 1.67}, {"date": "2026-08-21", "shares": 7465100, "ratio": 1.71}, {"date": "2026-08-27", "shares": 7946600, "ratio": 1.82}, {"date": "2026-09-01", "shares": 7965600, "ratio": 1.83}, {"date": "2026-09-07", "shares": 8920700, "ratio": 2.04}, {"date": "2026-09-10", "shares": 9186200, "ratio": 2.1}, {"date": "2026-09-16", "shares": 10398800, "ratio": 2.38}, {"date": "2026-09-21", "shares": 10589000, "ratio": 2.43}, {"date": "2026-09-28", "shares": 10640700, "ratio": 2.44}, {"date": "2026-10-08", "shares": 11049000, "ratio": 2.53}, {"date": "2026-10-09", "shares": 11049000, "ratio": 2.53}], "in_stock_connect": true, "verification_ok": true}, {"code": "00700", "name": "腾讯控股", "listed": "2004-06-16", "lockups": [], "current": {"date": "2026-10-10", "issued": 9092605595, "ccass_total_pct": 77.51, "buckets": {"southbound": 11.9, "foreign": 56.94, "chinese": 6.26, "local": 1.74, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 22.49}, "top": [{"name": "香港上海匯豐銀行有限公司", "cat": "foreign", "pct": 32.32, "shares": 2939266892}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 6.79, "shares": 617434063}, {"name": "花旗銀行", "cat": "foreign", "pct": 6.37, "shares": 579939295}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 5.11, "shares": 465238847}, {"name": "渣打銀行(香港)有限公司", "cat": "foreign", "pct": 4.06, "shares": 369342392}, {"name": "高盛(亞洲)證券有限公司", "cat": "foreign", "pct": 4.01, "shares": 365010093}, {"name": "UBS SECURITIES HONG KONG LTD", "cat": "foreign", "pct": 3.54, "shares": 322692269}, {"name": "MORGAN STANLEY HONG KONG SECURITIES LTD", "cat": "foreign", "pct": 3.52, "shares": 320844648}, {"name": "中銀國際證券有限公司", "cat": "chinese", "pct": 2.44, "shares": 222418181}, {"name": "中國工商銀行(亞洲)有限公司", "cat": "chinese", "pct": 1.13, "shares": 102865189}, {"name": "中國銀行(香港)有限公司", "cat": "chinese", "pct": 1.08, "shares": 98845928}, {"name": "法國巴黎銀行", "cat": "foreign", "pct": 1.08, "shares": 98468425}]}, "series": [{"date": "2025-10-31", "ccass_total": 77.23, "southbound": 11.07, "foreign": 59.44, "chinese": 4.93, "local": 1.2, "mainland": 0.0, "other_ccass": 0.59, "non_ccass": 22.77}, {"date": "2025-11-29", "ccass_total": 77.3, "southbound": 11.08, "foreign": 59.45, "chinese": 4.92, "local": 1.21, "mainland": 0.0, "other_ccass": 0.64, "non_ccass": 22.7}, {"date": "2025-12-31", "ccass_total": 77.23, "southbound": 11.01, "foreign": 59.35, "chinese": 5.0, "local": 1.23, "mainland": 0.0, "other_ccass": 0.64, "non_ccass": 22.77}, {"date": "2026-01-31", "ccass_total": 77.13, "southbound": 11.17, "foreign": 59.02, "chinese": 5.03, "local": 1.27, "mainland": 0.0, "other_ccass": 0.64, "non_ccass": 22.87}, {"date": "2026-02-28", "ccass_total": 77.27, "southbound": 11.62, "foreign": 58.35, "chinese": 5.22, "local": 1.43, "mainland": 0.0, "other_ccass": 0.65, "non_ccass": 22.73}, {"date": "2026-03-31", "ccass_total": 77.38, "southbound": 11.94, "foreign": 57.77, "chinese": 5.49, "local": 1.5, "mainland": 0.0, "other_ccass": 0.68, "non_ccass": 22.62}, {"date": "2026-04-30", "ccass_total": 77.38, "southbound": 11.86, "foreign": 57.63, "chinese": 5.63, "local": 1.56, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 22.62}, {"date": "2026-05-30", "ccass_total": 77.44, "southbound": 11.57, "foreign": 57.67, "chinese": 5.81, "local": 1.71, "mainland": 0.0, "other_ccass": 0.68, "non_ccass": 22.56}, {"date": "2026-06-30", "ccass_total": 77.24, "southbound": 11.57, "foreign": 57.39, "chinese": 5.87, "local": 1.74, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 22.76}, {"date": "2026-07-31", "ccass_total": 77.41, "southbound": 11.63, "foreign": 57.67, "chinese": 5.85, "local": 1.62, "mainland": 0.0, "other_ccass": 0.64, "non_ccass": 22.59}, {"date": "2026-08-31", "ccass_total": 77.55, "southbound": 11.81, "foreign": 57.33, "chinese": 6.06, "local": 1.65, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 22.45}, {"date": "2026-09-30", "ccass_total": 77.49, "southbound": 11.86, "foreign": 57.07, "chinese": 6.21, "local": 1.68, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 22.51}, {"date": "2026-10-10", "ccass_total": 77.51, "southbound": 11.9, "foreign": 56.94, "chinese": 6.26, "local": 1.74, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 22.49}], "weekly_series": [{"date": "2026-07-25", "ccass_total": 77.41, "southbound": 11.67, "foreign": 57.53, "chinese": 5.88, "local": 1.67, "mainland": 0.0, "other_ccass": 0.66, "non_ccass": 22.59}, {"date": "2026-07-31", "ccass_total": 77.41, "southbound": 11.63, "foreign": 57.67, "chinese": 5.85, "local": 1.62, "mainland": 0.0, "other_ccass": 0.64, "non_ccass": 22.59}, {"date": "2026-08-08", "ccass_total": 77.49, "southbound": 11.71, "foreign": 57.82, "chinese": 5.71, "local": 1.56, "mainland": 0.0, "other_ccass": 0.69, "non_ccass": 22.51}, {"date": "2026-08-15", "ccass_total": 77.32, "southbound": 11.61, "foreign": 57.7, "chinese": 5.74, "local": 1.57, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 22.68}, {"date": "2026-08-22", "ccass_total": 77.55, "southbound": 11.79, "foreign": 57.34, "chinese": 6.08, "local": 1.66, "mainland": 0.0, "other_ccass": 0.68, "non_ccass": 22.45}, {"date": "2026-08-29", "ccass_total": 77.55, "southbound": 11.79, "foreign": 57.32, "chinese": 6.06, "local": 1.65, "mainland": 0.0, "other_ccass": 0.73, "non_ccass": 22.45}, {"date": "2026-08-31", "ccass_total": 77.55, "southbound": 11.81, "foreign": 57.33, "chinese": 6.06, "local": 1.65, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 22.45}, {"date": "2026-09-12", "ccass_total": 77.46, "southbound": 11.81, "foreign": 57.08, "chinese": 6.16, "local": 1.68, "mainland": 0.0, "other_ccass": 0.73, "non_ccass": 22.54}, {"date": "2026-09-19", "ccass_total": 77.52, "southbound": 11.84, "foreign": 57.13, "chinese": 6.19, "local": 1.67, "mainland": 0.0, "other_ccass": 0.69, "non_ccass": 22.48}, {"date": "2026-09-25", "ccass_total": 77.52, "southbound": 11.87, "foreign": 57.11, "chinese": 6.21, "local": 1.68, "mainland": 0.0, "other_ccass": 0.65, "non_ccass": 22.48}, {"date": "2026-10-03", "ccass_total": 77.52, "southbound": 11.86, "foreign": 57.08, "chinese": 6.23, "local": 1.69, "mainland": 0.0, "other_ccass": 0.66, "non_ccass": 22.48}, {"date": "2026-10-10", "ccass_total": 77.51, "southbound": 11.9, "foreign": 56.94, "chinese": 6.26, "local": 1.74, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 22.49}], "southbound_daily": [{"date": "2024-10-14", "shares": 906658228, "ratio": 9.76}, {"date": "2024-10-17", "shares": 904831347, "ratio": 9.74}, {"date": "2024-10-23", "shares": 907462611, "ratio": 9.77}, {"date": "2024-10-28", "shares": 908482563, "ratio": 9.78}, {"date": "2024-11-01", "shares": 909936811, "ratio": 9.8}, {"date": "2024-11-06", "shares": 913046106, "ratio": 9.84}, {"date": "2024-11-12", "shares": 916644691, "ratio": 9.88}, {"date": "2024-11-15", "shares": 920415697, "ratio": 9.93}, {"date": "2024-11-21", "shares": 928425812, "ratio": 10.01}, {"date": "2024-11-26", "shares": 927988029, "ratio": 10.01}, {"date": "2024-12-02", "shares": 929835366, "ratio": 10.03}, {"date": "2024-12-05", "shares": 929709907, "ratio": 10.02}, {"date": "2024-12-11", "shares": 929834485, "ratio": 10.02}, {"date": "2024-12-16", "shares": 924374049, "ratio": 9.96}, {"date": "2024-12-20", "shares": 923935331, "ratio": 9.96}, {"date": "2024-12-27", "shares": 933639769, "ratio": 10.06}, {"date": "2025-01-03", "shares": 934324860, "ratio": 10.12}, {"date": "2025-01-08", "shares": 935768973, "ratio": 10.13}, {"date": "2025-01-14", "shares": 1017986540, "ratio": 11.03}, {"date": "2025-01-17", "shares": 1039241273, "ratio": 11.26}, {"date": "2025-01-23", "shares": 1046743885, "ratio": 11.34}, {"date": "2025-02-05", "shares": 1049714406, "ratio": 11.37}, {"date": "2025-02-11", "shares": 1039916275, "ratio": 11.32}, {"date": "2025-02-14", "shares": 1032048079, "ratio": 11.23}, {"date": "2025-02-20", "shares": 1030854852, "ratio": 11.23}, {"date": "2025-02-25", "shares": 1030244397, "ratio": 11.22}, {"date": "2025-03-03", "shares": 1042397364, "ratio": 11.35}, {"date": "2025-03-06", "shares": 1049184095, "ratio": 11.42}, {"date": "2025-03-12", "shares": 1054006505, "ratio": 11.47}, {"date": "2025-03-17", "shares": 1060724033, "ratio": 11.55}, {"date": "2025-03-21", "shares": 1063564783, "ratio": 11.56}, {"date": "2025-03-26", "shares": 1054666464, "ratio": 11.45}, {"date": "2025-04-01", "shares": 1053383768, "ratio": 11.44}, {"date": "2025-04-07", "shares": 1055819077, "ratio": 11.46}, {"date": "2025-04-11", "shares": 1075921555, "ratio": 11.68}, {"date": "2025-04-16", "shares": 1080636560, "ratio": 11.73}, {"date": "2025-04-24", "shares": 1087614834, "ratio": 11.8}, {"date": "2025-04-29", "shares": 1083236107, "ratio": 11.76}, {"date": "2025-05-08", "shares": 1079321403, "ratio": 11.73}, {"date": "2025-05-13", "shares": 1070447217, "ratio": 11.64}, {"date": "2025-05-19", "shares": 1055720016, "ratio": 11.48}, {"date": "2025-05-22", "shares": 1052676560, "ratio": 11.45}, {"date": "2025-05-28", "shares": 1041310121, "ratio": 11.32}, {"date": "2025-06-03", "shares": 1037037099, "ratio": 11.28}, {"date": "2025-06-09", "shares": 1030153149, "ratio": 11.2}, {"date": "2025-06-12", "shares": 1019620813, "ratio": 11.08}, {"date": "2025-06-18", "shares": 1010287196, "ratio": 11}, {"date": "2025-06-23", "shares": 1005041038, "ratio": 10.95}, {"date": "2025-06-27", "shares": 999349919, "ratio": 10.88}, {"date": "2025-07-03", "shares": 994987948, "ratio": 10.84}, {"date": "2025-07-09", "shares": 992687298, "ratio": 10.82}, {"date": "2025-07-14", "shares": 990059103, "ratio": 10.79}, {"date": "2025-07-18", "shares": 984317728, "ratio": 10.73}, {"date": "2025-07-23", "shares": 984117067, "ratio": 10.73}, {"date": "2025-07-29", "shares": 983036476, "ratio": 10.71}, {"date": "2025-08-01", "shares": 985937519, "ratio": 10.75}, {"date": "2025-08-07", "shares": 989850067, "ratio": 10.8}, {"date": "2025-08-12", "shares": 993460897, "ratio": 10.85}, {"date": "2025-08-18", "shares": 992001586, "ratio": 10.81}, {"date": "2025-08-21", "shares": 996609337, "ratio": 10.85}, {"date": "2025-08-27", "shares": 1002453477, "ratio": 10.92}, {"date": "2025-09-01", "shares": 1002610298, "ratio": 10.92}, {"date": "2025-09-05", "shares": 1007308702, "ratio": 10.98}, {"date": "2025-09-10", "shares": 1009214926, "ratio": 10.99}, {"date": "2025-09-16", "shares": 1008316038, "ratio": 11}, {"date": "2025-09-19", "shares": 1006698850, "ratio": 10.98}, {"date": "2025-09-25", "shares": 1004949375, "ratio": 10.96}, {"date": "2025-09-30", "shares": 1011989200, "ratio": 11.03}, {"date": "2025-10-14", "shares": 1013817965, "ratio": 11.06}, {"date": "2025-10-17", "shares": 1011392309, "ratio": 11.04}, {"date": "2025-10-23", "shares": 1010883902, "ratio": 11.03}, {"date": "2025-10-28", "shares": 1012381967, "ratio": 11.05}, {"date": "2025-11-04", "shares": 1011089618, "ratio": 11.04}, {"date": "2025-11-07", "shares": 1010661298, "ratio": 11.04}, {"date": "2025-11-13", "shares": 1009564614, "ratio": 11.03}, {"date": "2025-11-18", "shares": 1011797385, "ratio": 11.06}, {"date": "2025-11-24", "shares": 1011557876, "ratio": 11.06}, {"date": "2025-11-27", "shares": 1016126552, "ratio": 11.1}, {"date": "2025-12-03", "shares": 1014381139, "ratio": 11.08}, {"date": "2025-12-08", "shares": 1010340694, "ratio": 11.03}, {"date": "2025-12-12", "shares": 1007144173, "ratio": 11}, {"date": "2025-12-17", "shares": 1004031207, "ratio": 10.99}, {"date": "2025-12-23", "shares": 1007106070, "ratio": 11.02}, {"date": "2025-12-30", "shares": 1005257196, "ratio": 11}, {"date": "2026-01-07", "shares": 1000036460, "ratio": 10.96}, {"date": "2026-01-12", "shares": 1003311401, "ratio": 10.99}, {"date": "2026-01-16", "shares": 1013221060, "ratio": 11.1}, {"date": "2026-01-21", "shares": 1014743210, "ratio": 11.12}, {"date": "2026-01-27", "shares": 1014663011, "ratio": 11.11}, {"date": "2026-01-30", "shares": 1020002404, "ratio": 11.17}, {"date": "2026-02-05", "shares": 1026451117, "ratio": 11.26}, {"date": "2026-02-10", "shares": 1048426298, "ratio": 11.5}, {"date": "2026-02-24", "shares": 1057369073, "ratio": 11.6}, {"date": "2026-02-27", "shares": 1058759849, "ratio": 11.62}, {"date": "2026-03-05", "shares": 1066508215, "ratio": 11.7}, {"date": "2026-03-10", "shares": 1075570488, "ratio": 11.8}, {"date": "2026-03-16", "shares": 1080367529, "ratio": 11.86}, {"date": "2026-03-19", "shares": 1085238279, "ratio": 11.89}, {"date": "2026-03-25", "shares": 1088828172, "ratio": 11.92}, {"date": "2026-03-30", "shares": 1089694860, "ratio": 11.93}, {"date": "2026-04-08", "shares": 1094413665, "ratio": 11.98}, {"date": "2026-04-13", "shares": 1095227517, "ratio": 11.99}, {"date": "2026-04-17", "shares": 1090356586, "ratio": 11.94}, {"date": "2026-04-22", "shares": 1089530440, "ratio": 11.93}, {"date": "2026-04-28", "shares": 1086948049, "ratio": 11.9}, {"date": "2026-05-06", "shares": 1079381340, "ratio": 11.82}, {"date": "2026-05-12", "shares": 1068703774, "ratio": 11.71}, {"date": "2026-05-15", "shares": 1064695575, "ratio": 11.67}, {"date": "2026-05-21", "shares": 1067776014, "ratio": 11.7}, {"date": "2026-05-27", "shares": 1062298221, "ratio": 11.64}, {"date": "2026-06-02", "shares": 1057653459, "ratio": 11.59}, {"date": "2026-06-05", "shares": 1058273640, "ratio": 11.6}, {"date": "2026-06-11", "shares": 1065300210, "ratio": 11.68}, {"date": "2026-06-16", "shares": 1071430901, "ratio": 11.75}, {"date": "2026-06-23", "shares": 1058984411, "ratio": 11.62}, {"date": "2026-06-26", "shares": 1056772265, "ratio": 11.59}, {"date": "2026-07-03", "shares": 1060146290, "ratio": 11.65}, {"date": "2026-07-08", "shares": 1065155408, "ratio": 11.7}, {"date": "2026-07-14", "shares": 1066103608, "ratio": 11.72}, {"date": "2026-07-17", "shares": 1069680298, "ratio": 11.76}, {"date": "2026-07-23", "shares": 1068123499, "ratio": 11.74}, {"date": "2026-07-28", "shares": 1057315745, "ratio": 11.62}, {"date": "2026-08-03", "shares": 1060775763, "ratio": 11.65}, {"date": "2026-08-06", "shares": 1065920947, "ratio": 11.72}, {"date": "2026-08-12", "shares": 1055831283, "ratio": 11.61}, {"date": "2026-08-17", "shares": 1069784599, "ratio": 11.74}, {"date": "2026-08-21", "shares": 1074345268, "ratio": 11.79}, {"date": "2026-08-26", "shares": 1075375016, "ratio": 11.81}, {"date": "2026-09-01", "shares": 1075037080, "ratio": 11.8}, {"date": "2026-09-04", "shares": 1079262423, "ratio": 11.84}, {"date": "2026-09-10", "shares": 1075865691, "ratio": 11.81}, {"date": "2026-09-15", "shares": 1078654706, "ratio": 11.84}, {"date": "2026-09-21", "shares": 1077854553, "ratio": 11.84}, {"date": "2026-09-24", "shares": 1075624017, "ratio": 11.82}, {"date": "2026-10-08", "shares": 1082672910, "ratio": 11.9}, {"date": "2026-10-09", "shares": 1082672910, "ratio": 11.9}], "in_stock_connect": true, "verification_ok": true}, {"code": "01211", "name": "比亚迪股份", "listed": "2002-07-31", "lockups": [], "current": {"date": "2026-10-10", "issued": 3683400000, "ccass_total_pct": 99.94, "buckets": {"southbound": 9.28, "foreign": 78.48, "chinese": 7.12, "local": 4.36, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, "top": [{"name": "香港上海匯豐銀行有限公司", "cat": "foreign", "pct": 46.14, "shares": 1699567986}, {"name": "花旗銀行", "cat": "foreign", "pct": 19.52, "shares": 719106042}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 6.15, "shares": 226592853}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 3.13, "shares": 115411189}, {"name": "UBS SECURITIES HONG KONG LTD", "cat": "foreign", "pct": 2.74, "shares": 101101889}, {"name": "渣打銀行(香港)有限公司", "cat": "foreign", "pct": 2.57, "shares": 94803994}, {"name": "高盛(亞洲)證券有限公司", "cat": "foreign", "pct": 2.36, "shares": 87005315}, {"name": "中國銀行(香港)有限公司", "cat": "chinese", "pct": 1.95, "shares": 71980943}, {"name": "中國工商銀行(亞洲)有限公司", "cat": "chinese", "pct": 1.91, "shares": 70359828}, {"name": "法國巴黎銀行", "cat": "foreign", "pct": 1.41, "shares": 52023420}, {"name": "恒生證券有限公司", "cat": "local", "pct": 1.01, "shares": 37545404}, {"name": "富途證券國際(香港)有限公司", "cat": "local", "pct": 0.97, "shares": 35992016}]}, "series": [{"date": "2025-10-31", "ccass_total": 99.94, "southbound": 8.17, "foreign": 80.46, "chinese": 6.53, "local": 4.03, "mainland": 0.0, "other_ccass": 0.75, "non_ccass": 0.06}, {"date": "2025-11-29", "ccass_total": 99.94, "southbound": 8.43, "foreign": 80.2, "chinese": 6.52, "local": 4.09, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, {"date": "2025-12-31", "ccass_total": 99.94, "southbound": 9.19, "foreign": 79.46, "chinese": 6.42, "local": 4.17, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, {"date": "2026-01-31", "ccass_total": 99.94, "southbound": 9.25, "foreign": 79.64, "chinese": 6.27, "local": 4.04, "mainland": 0.0, "other_ccass": 0.74, "non_ccass": 0.06}, {"date": "2026-02-28", "ccass_total": 99.94, "southbound": 9.65, "foreign": 79.3, "chinese": 6.25, "local": 4.01, "mainland": 0.0, "other_ccass": 0.73, "non_ccass": 0.06}, {"date": "2026-03-31", "ccass_total": 99.94, "southbound": 10.58, "foreign": 78.24, "chinese": 6.59, "local": 3.81, "mainland": 0.0, "other_ccass": 0.72, "non_ccass": 0.06}, {"date": "2026-04-30", "ccass_total": 99.94, "southbound": 10.6, "foreign": 78.08, "chinese": 6.67, "local": 3.84, "mainland": 0.0, "other_ccass": 0.75, "non_ccass": 0.06}, {"date": "2026-05-30", "ccass_total": 99.94, "southbound": 10.4, "foreign": 77.76, "chinese": 7.0, "local": 4.02, "mainland": 0.0, "other_ccass": 0.76, "non_ccass": 0.06}, {"date": "2026-06-30", "ccass_total": 99.94, "southbound": 10.24, "foreign": 77.31, "chinese": 7.45, "local": 4.2, "mainland": 0.0, "other_ccass": 0.74, "non_ccass": 0.06}, {"date": "2026-07-31", "ccass_total": 99.94, "southbound": 9.76, "foreign": 78.1, "chinese": 7.36, "local": 4.03, "mainland": 0.0, "other_ccass": 0.69, "non_ccass": 0.06}, {"date": "2026-08-31", "ccass_total": 99.94, "southbound": 9.44, "foreign": 78.63, "chinese": 7.15, "local": 3.99, "mainland": 0.0, "other_ccass": 0.73, "non_ccass": 0.06}, {"date": "2026-09-30", "ccass_total": 99.94, "southbound": 9.19, "foreign": 78.64, "chinese": 7.1, "local": 4.31, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, {"date": "2026-10-10", "ccass_total": 99.94, "southbound": 9.28, "foreign": 78.48, "chinese": 7.12, "local": 4.36, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}], "weekly_series": [{"date": "2026-07-25", "ccass_total": 99.94, "southbound": 9.87, "foreign": 77.88, "chinese": 7.41, "local": 4.07, "mainland": 0.0, "other_ccass": 0.71, "non_ccass": 0.06}, {"date": "2026-07-31", "ccass_total": 99.94, "southbound": 9.76, "foreign": 78.1, "chinese": 7.36, "local": 4.03, "mainland": 0.0, "other_ccass": 0.69, "non_ccass": 0.06}, {"date": "2026-08-08", "ccass_total": 99.94, "southbound": 9.7, "foreign": 78.28, "chinese": 7.24, "local": 4.02, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, {"date": "2026-08-15", "ccass_total": 99.94, "southbound": 9.62, "foreign": 78.25, "chinese": 7.25, "local": 4.13, "mainland": 0.0, "other_ccass": 0.69, "non_ccass": 0.06}, {"date": "2026-08-22", "ccass_total": 99.94, "southbound": 9.44, "foreign": 78.38, "chinese": 7.23, "local": 4.18, "mainland": 0.0, "other_ccass": 0.71, "non_ccass": 0.06}, {"date": "2026-08-29", "ccass_total": 99.94, "southbound": 9.44, "foreign": 78.64, "chinese": 7.17, "local": 3.98, "mainland": 0.0, "other_ccass": 0.71, "non_ccass": 0.06}, {"date": "2026-08-31", "ccass_total": 99.94, "southbound": 9.44, "foreign": 78.63, "chinese": 7.15, "local": 3.99, "mainland": 0.0, "other_ccass": 0.73, "non_ccass": 0.06}, {"date": "2026-09-12", "ccass_total": 99.94, "southbound": 9.26, "foreign": 78.62, "chinese": 7.15, "local": 4.21, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, {"date": "2026-09-19", "ccass_total": 99.94, "southbound": 9.16, "foreign": 78.75, "chinese": 7.09, "local": 4.21, "mainland": 0.0, "other_ccass": 0.73, "non_ccass": 0.06}, {"date": "2026-09-25", "ccass_total": 99.94, "southbound": 9.22, "foreign": 78.61, "chinese": 7.04, "local": 4.37, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}, {"date": "2026-10-03", "ccass_total": 99.94, "southbound": 9.2, "foreign": 78.58, "chinese": 7.1, "local": 4.34, "mainland": 0.0, "other_ccass": 0.72, "non_ccass": 0.06}, {"date": "2026-10-10", "ccass_total": 99.94, "southbound": 9.28, "foreign": 78.48, "chinese": 7.12, "local": 4.36, "mainland": 0.0, "other_ccass": 0.7, "non_ccass": 0.06}], "southbound_daily": [{"date": "2024-10-14", "shares": 48456207, "ratio": 4.4}, {"date": "2024-10-17", "shares": 48916504, "ratio": 4.44}, {"date": "2024-10-23", "shares": 49895829, "ratio": 4.54}, {"date": "2024-10-28", "shares": 49887436, "ratio": 4.53}, {"date": "2024-11-01", "shares": 50677985, "ratio": 4.61}, {"date": "2024-11-06", "shares": 49570801, "ratio": 4.5}, {"date": "2024-11-12", "shares": 49226981, "ratio": 4.47}, {"date": "2024-11-15", "shares": 48470087, "ratio": 4.41}, {"date": "2024-11-21", "shares": 47871661, "ratio": 4.35}, {"date": "2024-11-26", "shares": 47113771, "ratio": 4.28}, {"date": "2024-12-02", "shares": 47293913, "ratio": 4.29}, {"date": "2024-12-05", "shares": 47473913, "ratio": 4.31}, {"date": "2024-12-11", "shares": 46926579, "ratio": 4.26}, {"date": "2024-12-16", "shares": 46082579, "ratio": 4.19}, {"date": "2024-12-20", "shares": 46937880, "ratio": 4.26}, {"date": "2024-12-27", "shares": 46899380, "ratio": 4.26}, {"date": "2025-01-03", "shares": 48761023, "ratio": 4.43}, {"date": "2025-01-08", "shares": 47685997, "ratio": 4.33}, {"date": "2025-01-14", "shares": 47663286, "ratio": 4.33}, {"date": "2025-01-17", "shares": 47159534, "ratio": 4.28}, {"date": "2025-01-23", "shares": 47706762, "ratio": 4.34}, {"date": "2025-02-05", "shares": 47263619, "ratio": 4.29}, {"date": "2025-02-11", "shares": 51122625, "ratio": 4.65}, {"date": "2025-02-14", "shares": 51687531, "ratio": 4.7}, {"date": "2025-02-20", "shares": 48763362, "ratio": 4.43}, {"date": "2025-02-25", "shares": 49578378, "ratio": 4.51}, {"date": "2025-03-03", "shares": 48932141, "ratio": 4.45}, {"date": "2025-03-06", "shares": 52791534, "ratio": 4.8}, {"date": "2025-03-12", "shares": 55148715, "ratio": 4.48}, {"date": "2025-03-17", "shares": 57220200, "ratio": 4.65}, {"date": "2025-03-21", "shares": 57971667, "ratio": 4.71}, {"date": "2025-03-26", "shares": 56337331, "ratio": 4.57}, {"date": "2025-04-01", "shares": 57703800, "ratio": 4.69}, {"date": "2025-04-07", "shares": 57280466, "ratio": 4.66}, {"date": "2025-04-11", "shares": 56917729, "ratio": 4.63}, {"date": "2025-04-16", "shares": 57885372, "ratio": 4.7}, {"date": "2025-04-24", "shares": 57534901, "ratio": 4.67}, {"date": "2025-04-29", "shares": 56706147, "ratio": 4.61}, {"date": "2025-05-08", "shares": 54828781, "ratio": 4.46}, {"date": "2025-05-13", "shares": 53876075, "ratio": 4.37}, {"date": "2025-05-19", "shares": 52900944, "ratio": 4.29}, {"date": "2025-05-22", "shares": 52518033, "ratio": 4.27}, {"date": "2025-05-28", "shares": 48617994, "ratio": 3.95}, {"date": "2025-06-03", "shares": 47864050, "ratio": 3.89}, {"date": "2025-06-09", "shares": 50713198, "ratio": 4.12}, {"date": "2025-06-12", "shares": 65795939, "ratio": 5.35}, {"date": "2025-06-18", "shares": 77476676, "ratio": 6.3}, {"date": "2025-06-23", "shares": 77810676, "ratio": 6.33}, {"date": "2025-06-27", "shares": 78083176, "ratio": 6.35}, {"date": "2025-07-03", "shares": 82014215, "ratio": 6.67}, {"date": "2025-07-09", "shares": 86671615, "ratio": 7.05}, {"date": "2025-07-14", "shares": 88848086, "ratio": 7.22}, {"date": "2025-07-18", "shares": 91318139, "ratio": 7.42}, {"date": "2025-07-23", "shares": 93669996, "ratio": 7.62}, {"date": "2025-07-29", "shares": 210366211, "ratio": null}, {"date": "2025-08-01", "shares": 217471204, "ratio": 5.9}, {"date": "2025-08-07", "shares": 223368944, "ratio": 6.05}, {"date": "2025-08-12", "shares": 228451216, "ratio": 6.2}, {"date": "2025-08-18", "shares": 231101610, "ratio": 6.26}, {"date": "2025-08-21", "shares": 232803046, "ratio": 6.31}, {"date": "2025-08-27", "shares": 234156415, "ratio": 6.35}, {"date": "2025-09-01", "shares": 238210252, "ratio": 6.46}, {"date": "2025-09-05", "shares": 249274360, "ratio": 6.76}, {"date": "2025-09-10", "shares": 271592860, "ratio": 7.36}, {"date": "2025-09-16", "shares": 277458360, "ratio": 7.52}, {"date": "2025-09-19", "shares": 285742860, "ratio": 7.75}, {"date": "2025-09-25", "shares": 288975560, "ratio": 7.84}, {"date": "2025-09-30", "shares": 292899860, "ratio": 7.94}, {"date": "2025-10-14", "shares": 293420874, "ratio": 7.95}, {"date": "2025-10-17", "shares": 300395323, "ratio": 8.14}, {"date": "2025-10-23", "shares": 305233723, "ratio": 8.28}, {"date": "2025-10-28", "shares": 303823627, "ratio": 8.24}, {"date": "2025-11-04", "shares": 301606264, "ratio": 8.18}, {"date": "2025-11-07", "shares": 302639964, "ratio": 8.21}, {"date": "2025-11-13", "shares": 303504664, "ratio": 8.23}, {"date": "2025-11-18", "shares": 304468864, "ratio": 8.25}, {"date": "2025-11-24", "shares": 308502684, "ratio": 8.36}, {"date": "2025-11-27", "shares": 312354684, "ratio": 8.47}, {"date": "2025-12-03", "shares": 311399584, "ratio": 8.45}, {"date": "2025-12-08", "shares": 316797058, "ratio": 8.59}, {"date": "2025-12-12", "shares": 324003553, "ratio": 8.79}, {"date": "2025-12-17", "shares": 329821872, "ratio": 8.95}, {"date": "2025-12-23", "shares": 337077072, "ratio": 9.14}, {"date": "2025-12-30", "shares": 338650772, "ratio": 9.19}, {"date": "2026-01-07", "shares": 341352072, "ratio": 9.25}, {"date": "2026-01-12", "shares": 348253552, "ratio": 9.45}, {"date": "2026-01-16", "shares": 347359152, "ratio": 9.42}, {"date": "2026-01-21", "shares": 345280352, "ratio": 9.36}, {"date": "2026-01-27", "shares": 345285350, "ratio": 9.36}, {"date": "2026-01-30", "shares": 340834952, "ratio": 9.25}, {"date": "2026-02-05", "shares": 343875879, "ratio": 9.33}, {"date": "2026-02-10", "shares": 350050979, "ratio": 9.49}, {"date": "2026-02-24", "shares": 351030979, "ratio": 9.52}, {"date": "2026-02-27", "shares": 355792079, "ratio": 9.65}, {"date": "2026-03-05", "shares": 365318650, "ratio": 9.91}, {"date": "2026-03-10", "shares": 367003900, "ratio": 9.96}, {"date": "2026-03-16", "shares": 370216700, "ratio": 10.04}, {"date": "2026-03-19", "shares": 374690700, "ratio": 10.16}, {"date": "2026-03-25", "shares": 393149930, "ratio": 10.66}, {"date": "2026-03-30", "shares": 392532175, "ratio": 10.65}, {"date": "2026-04-08", "shares": 397642639, "ratio": 10.78}, {"date": "2026-04-13", "shares": 395900253, "ratio": 10.74}, {"date": "2026-04-17", "shares": 391132053, "ratio": 10.61}, {"date": "2026-04-22", "shares": 388697153, "ratio": 10.54}, {"date": "2026-04-28", "shares": 391391033, "ratio": 10.62}, {"date": "2026-05-06", "shares": 394622995, "ratio": 10.7}, {"date": "2026-05-12", "shares": 393176078, "ratio": 10.66}, {"date": "2026-05-15", "shares": 390923292, "ratio": 10.6}, {"date": "2026-05-21", "shares": 383522492, "ratio": 10.4}, {"date": "2026-05-27", "shares": 383192396, "ratio": 10.39}, {"date": "2026-06-02", "shares": 383403284, "ratio": 10.4}, {"date": "2026-06-05", "shares": 375170970, "ratio": 10.17}, {"date": "2026-06-11", "shares": 377703170, "ratio": 10.24}, {"date": "2026-06-16", "shares": 379829370, "ratio": 10.31}, {"date": "2026-06-23", "shares": 377566180, "ratio": 10.24}, {"date": "2026-06-26", "shares": 378566680, "ratio": 10.27}, {"date": "2026-07-03", "shares": 373842989, "ratio": 10.13}, {"date": "2026-07-08", "shares": 371833089, "ratio": 10.09}, {"date": "2026-07-14", "shares": 363696989, "ratio": 9.87}, {"date": "2026-07-17", "shares": 364330989, "ratio": 9.88}, {"date": "2026-07-23", "shares": 364270689, "ratio": 9.87}, {"date": "2026-07-28", "shares": 363290064, "ratio": 9.85}, {"date": "2026-08-03", "shares": 359412364, "ratio": 9.75}, {"date": "2026-08-06", "shares": 358801764, "ratio": 9.73}, {"date": "2026-08-12", "shares": 354440679, "ratio": 9.61}, {"date": "2026-08-17", "shares": 352747319, "ratio": 9.57}, {"date": "2026-08-21", "shares": 348232612, "ratio": 9.44}, {"date": "2026-08-26", "shares": 345453651, "ratio": 9.37}, {"date": "2026-09-01", "shares": 347747358, "ratio": 9.43}, {"date": "2026-09-04", "shares": 348134958, "ratio": 9.44}, {"date": "2026-09-10", "shares": 344599958, "ratio": 9.34}, {"date": "2026-09-15", "shares": 338471404, "ratio": 9.18}, {"date": "2026-09-21", "shares": 337800079, "ratio": 9.16}, {"date": "2026-09-24", "shares": 339802709, "ratio": 9.22}, {"date": "2026-10-08", "shares": 342004042, "ratio": 9.28}, {"date": "2026-10-09", "shares": 342004042, "ratio": 9.28}], "in_stock_connect": true, "verification_ok": true}, {"code": "02513", "name": "智谱", "listed": "2026-01-08", "lockups": [{"date": "2026-07-07", "shares": 25681600, "note": "基石投资者及领航资深独立投资者 6 个月禁售期届满（2568.16 万股，占总股本约 5.76%）"}, {"date": "2027-01-07", "shares": null, "note": "全体现有股东 12 个月禁售期届满（适用中国法律规定，以境内股东H股为主）"}], "current": {"date": "2026-10-10", "issued": 263059605, "ccass_total_pct": 93.8, "buckets": {"southbound": 14.08, "foreign": 9.09, "chinese": 6.14, "local": 2.36, "mainland": 61.57, "other_ccass": 0.56, "non_ccass": 6.2}, "top": [{"name": "中國證券登記結算(香港)有限公司", "cat": "mainland", "pct": 61.57, "shares": 161978395}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 9.25, "shares": 24343933}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 4.83, "shares": 12721173}, {"name": "香港上海匯豐銀行有限公司", "cat": "foreign", "pct": 4.11, "shares": 10832507}, {"name": "中國國際金融香港證券有限公司", "cat": "chinese", "pct": 2.81, "shares": 7411851}, {"name": "花旗銀行", "cat": "foreign", "pct": 2.68, "shares": 7050229}, {"name": "富途證券國際(香港)有限公司", "cat": "local", "pct": 1.35, "shares": 3576953}, {"name": "中信里昂證券有限公司", "cat": "chinese", "pct": 1.08, "shares": 2853722}, {"name": "中國銀行(香港)有限公司", "cat": "chinese", "pct": 0.59, "shares": 1573337}, {"name": "渣打銀行(香港)有限公司", "cat": "foreign", "pct": 0.55, "shares": 1455436}, {"name": "MLFE LTD", "cat": "foreign", "pct": 0.39, "shares": 1050072}, {"name": "中信証券經紀(香港)有限公司", "cat": "chinese", "pct": 0.38, "shares": 1007200}]}, "series": [{"date": "2026-01-31", "ccass_total": 92.43, "southbound": 0.0, "foreign": 10.35, "chinese": 4.87, "local": 1.65, "mainland": 75.09, "other_ccass": 0.47, "non_ccass": 7.57}, {"date": "2026-02-28", "ccass_total": 92.63, "southbound": 0.0, "foreign": 10.53, "chinese": 7.32, "local": 1.15, "mainland": 73.18, "other_ccass": 0.45, "non_ccass": 7.37}, {"date": "2026-03-31", "ccass_total": 92.63, "southbound": 0.0, "foreign": 10.54, "chinese": 7.58, "local": 0.95, "mainland": 73.18, "other_ccass": 0.38, "non_ccass": 7.37}, {"date": "2026-04-30", "ccass_total": 92.63, "southbound": 0.0, "foreign": 10.67, "chinese": 7.18, "local": 1.16, "mainland": 73.18, "other_ccass": 0.44, "non_ccass": 7.37}, {"date": "2026-05-30", "ccass_total": 92.63, "southbound": 0.0, "foreign": 11.56, "chinese": 7.04, "local": 0.53, "mainland": 73.18, "other_ccass": 0.32, "non_ccass": 7.37}, {"date": "2026-06-30", "ccass_total": 92.63, "southbound": 2.89, "foreign": 8.97, "chinese": 6.91, "local": 0.36, "mainland": 73.18, "other_ccass": 0.32, "non_ccass": 7.37}, {"date": "2026-07-31", "ccass_total": 93.23, "southbound": 9.95, "foreign": 8.18, "chinese": 6.46, "local": 1.04, "mainland": 67.18, "other_ccass": 0.42, "non_ccass": 6.77}, {"date": "2026-08-31", "ccass_total": 93.23, "southbound": 11.22, "foreign": 7.62, "chinese": 5.68, "local": 1.11, "mainland": 67.18, "other_ccass": 0.42, "non_ccass": 6.77}, {"date": "2026-09-30", "ccass_total": 93.8, "southbound": 14.06, "foreign": 9.31, "chinese": 5.81, "local": 2.44, "mainland": 61.57, "other_ccass": 0.61, "non_ccass": 6.2}, {"date": "2026-10-10", "ccass_total": 93.8, "southbound": 14.08, "foreign": 9.09, "chinese": 6.14, "local": 2.36, "mainland": 61.57, "other_ccass": 0.56, "non_ccass": 6.2}], "weekly_series": [{"date": "2026-07-25", "ccass_total": 93.23, "southbound": 9.21, "foreign": 8.97, "chinese": 6.48, "local": 0.99, "mainland": 67.18, "other_ccass": 0.4, "non_ccass": 6.77}, {"date": "2026-07-31", "ccass_total": 93.23, "southbound": 9.95, "foreign": 8.18, "chinese": 6.46, "local": 1.04, "mainland": 67.18, "other_ccass": 0.42, "non_ccass": 6.77}, {"date": "2026-08-08", "ccass_total": 93.23, "southbound": 10.7, "foreign": 7.57, "chinese": 6.41, "local": 0.95, "mainland": 67.18, "other_ccass": 0.42, "non_ccass": 6.77}, {"date": "2026-08-15", "ccass_total": 93.23, "southbound": 10.91, "foreign": 7.52, "chinese": 6.28, "local": 0.88, "mainland": 67.18, "other_ccass": 0.46, "non_ccass": 6.77}, {"date": "2026-08-22", "ccass_total": 93.23, "southbound": 11.61, "foreign": 6.94, "chinese": 5.95, "local": 1.08, "mainland": 67.18, "other_ccass": 0.47, "non_ccass": 6.77}, {"date": "2026-08-29", "ccass_total": 93.23, "southbound": 11.43, "foreign": 7.25, "chinese": 5.78, "local": 1.14, "mainland": 67.18, "other_ccass": 0.45, "non_ccass": 6.77}, {"date": "2026-08-31", "ccass_total": 93.23, "southbound": 11.22, "foreign": 7.62, "chinese": 5.68, "local": 1.11, "mainland": 67.18, "other_ccass": 0.42, "non_ccass": 6.77}, {"date": "2026-09-12", "ccass_total": 93.23, "southbound": 10.88, "foreign": 7.57, "chinese": 5.59, "local": 1.48, "mainland": 67.18, "other_ccass": 0.53, "non_ccass": 6.77}, {"date": "2026-09-19", "ccass_total": 93.8, "southbound": 12.39, "foreign": 11.64, "chinese": 5.78, "local": 1.87, "mainland": 61.57, "other_ccass": 0.55, "non_ccass": 6.2}, {"date": "2026-09-25", "ccass_total": 93.8, "southbound": 14.22, "foreign": 9.29, "chinese": 5.8, "local": 2.36, "mainland": 61.57, "other_ccass": 0.56, "non_ccass": 6.2}, {"date": "2026-10-03", "ccass_total": 93.8, "southbound": 14.17, "foreign": 9.21, "chinese": 5.84, "local": 2.43, "mainland": 61.57, "other_ccass": 0.58, "non_ccass": 6.2}, {"date": "2026-10-10", "ccass_total": 93.8, "southbound": 14.08, "foreign": 9.09, "chinese": 6.14, "local": 2.36, "mainland": 61.57, "other_ccass": 0.56, "non_ccass": 6.2}], "southbound_daily": [{"date": "2026-06-10", "shares": 1379500, "ratio": 0.61}, {"date": "2026-06-15", "shares": 2893100, "ratio": 1.3}, {"date": "2026-06-22", "shares": 5949100, "ratio": 2.68}, {"date": "2026-06-25", "shares": 6107841, "ratio": 2.75}, {"date": "2026-07-02", "shares": 6640400, "ratio": 2.99}, {"date": "2026-07-07", "shares": 7156000, "ratio": 3.23}, {"date": "2026-07-13", "shares": 13024100, "ratio": null}, {"date": "2026-07-16", "shares": 19203566, "ratio": 7.95}, {"date": "2026-07-22", "shares": 21011951, "ratio": 8.7}, {"date": "2026-07-27", "shares": 22647337, "ratio": 9.39}, {"date": "2026-07-31", "shares": 24015090, "ratio": 9.95}, {"date": "2026-08-05", "shares": 24428130, "ratio": 10.12}, {"date": "2026-08-11", "shares": 25799378, "ratio": 10.69}, {"date": "2026-08-14", "shares": 26327547, "ratio": 10.91}, {"date": "2026-08-20", "shares": 28364045, "ratio": 11.75}, {"date": "2026-08-25", "shares": 27645427, "ratio": 11.45}, {"date": "2026-08-31", "shares": 27072390, "ratio": 11.22}, {"date": "2026-09-03", "shares": 26179464, "ratio": 10.85}, {"date": "2026-09-09", "shares": 27101364, "ratio": 11.23}, {"date": "2026-09-14", "shares": 25097504, "ratio": 10.39}, {"date": "2026-09-18", "shares": 32608568, "ratio": 12.39}, {"date": "2026-09-23", "shares": 36630614, "ratio": 13.91}, {"date": "2026-09-30", "shares": 37026634, "ratio": 14.06}, {"date": "2026-10-09", "shares": 37065106, "ratio": 14.08}], "in_stock_connect": true, "verification_ok": true}, {"code": "00100", "name": "MINIMAX-W", "listed": "2026-01-09", "lockups": [{"date": "2026-07-09", "shares": 153000000, "note": "基石投资者及上市前老股东 6 个月锁仓届满（约 1.53 亿股，占总股本逾 48%）"}, {"date": "2027-01-09", "shares": null, "note": "控股股东 12 个月禁售期届满（上市规则 10.07 一般性要求，以公司公告为准）"}], "current": {"date": "2026-10-10", "issued": 352480183, "ccass_total_pct": 70.78, "buckets": {"southbound": 10.47, "foreign": 40.35, "chinese": 8.94, "local": 10.4, "mainland": 0.0, "other_ccass": 0.62, "non_ccass": 29.22}, "top": [{"name": "MORGAN STANLEY HONG KONG SECURITIES LTD", "cat": "foreign", "pct": 10.57, "shares": 37286238}, {"name": "富途證券國際(香港)有限公司", "cat": "local", "pct": 9.0, "shares": 31735984}, {"name": "香港上海匯豐銀行有限公司", "cat": "foreign", "pct": 7.49, "shares": 26407493}, {"name": "高盛(亞洲)證券有限公司", "cat": "foreign", "pct": 7.0, "shares": 24673763}, {"name": "UBS SECURITIES HONG KONG LTD", "cat": "foreign", "pct": 5.82, "shares": 20546105}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 5.37, "shares": 18948499}, {"name": "中國証券登記結算有限責任公司", "cat": "southbound", "pct": 5.1, "shares": 17982667}, {"name": "花旗銀行", "cat": "foreign", "pct": 4.81, "shares": 16969982}, {"name": "MLFE LTD", "cat": "foreign", "pct": 2.7, "shares": 9529024}, {"name": "中國國際金融香港證券有限公司", "cat": "chinese", "pct": 1.98, "shares": 6986712}, {"name": "華泰金融控股(香港)有限公司", "cat": "chinese", "pct": 1.17, "shares": 4139477}, {"name": "中信証券經紀(香港)有限公司", "cat": "chinese", "pct": 1.15, "shares": 4071018}]}, "series": [{"date": "2026-01-31", "ccass_total": 12.1, "southbound": 0.0, "foreign": 8.7, "chinese": 2.48, "local": 0.63, "mainland": 0.0, "other_ccass": 0.29, "non_ccass": 87.9}, {"date": "2026-02-28", "ccass_total": 12.09, "southbound": 0.0, "foreign": 8.7, "chinese": 2.61, "local": 0.44, "mainland": 0.0, "other_ccass": 0.34, "non_ccass": 87.91}, {"date": "2026-03-31", "ccass_total": 13.26, "southbound": 0.0, "foreign": 9.55, "chinese": 2.77, "local": 0.54, "mainland": 0.0, "other_ccass": 0.4, "non_ccass": 86.74}, {"date": "2026-04-30", "ccass_total": 13.26, "southbound": 0.0, "foreign": 9.31, "chinese": 2.87, "local": 0.67, "mainland": 0.0, "other_ccass": 0.41, "non_ccass": 86.74}, {"date": "2026-05-30", "ccass_total": 13.26, "southbound": 0.0, "foreign": 9.55, "chinese": 2.73, "local": 0.53, "mainland": 0.0, "other_ccass": 0.45, "non_ccass": 86.74}, {"date": "2026-06-30", "ccass_total": 15.99, "southbound": 0.0, "foreign": 11.59, "chinese": 3.09, "local": 0.84, "mainland": 0.0, "other_ccass": 0.47, "non_ccass": 84.01}, {"date": "2026-07-31", "ccass_total": 67.17, "southbound": 0.0, "foreign": 48.42, "chinese": 9.24, "local": 8.97, "mainland": 0.0, "other_ccass": 0.54, "non_ccass": 32.83}, {"date": "2026-08-31", "ccass_total": 69.4, "southbound": 9.81, "foreign": 40.99, "chinese": 9.37, "local": 8.56, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 30.6}, {"date": "2026-09-30", "ccass_total": 70.51, "southbound": 10.4, "foreign": 41.34, "chinese": 8.89, "local": 9.31, "mainland": 0.0, "other_ccass": 0.57, "non_ccass": 29.49}, {"date": "2026-10-10", "ccass_total": 70.78, "southbound": 10.47, "foreign": 40.35, "chinese": 8.94, "local": 10.4, "mainland": 0.0, "other_ccass": 0.62, "non_ccass": 29.22}], "weekly_series": [{"date": "2026-07-25", "ccass_total": 67.17, "southbound": 0.0, "foreign": 48.92, "chinese": 9.03, "local": 8.69, "mainland": 0.0, "other_ccass": 0.53, "non_ccass": 32.83}, {"date": "2026-07-31", "ccass_total": 67.17, "southbound": 0.0, "foreign": 48.42, "chinese": 9.24, "local": 8.97, "mainland": 0.0, "other_ccass": 0.54, "non_ccass": 32.83}, {"date": "2026-08-08", "ccass_total": 67.17, "southbound": 0.0, "foreign": 48.12, "chinese": 9.29, "local": 9.2, "mainland": 0.0, "other_ccass": 0.56, "non_ccass": 32.83}, {"date": "2026-08-15", "ccass_total": 67.17, "southbound": 6.31, "foreign": 42.6, "chinese": 9.01, "local": 8.67, "mainland": 0.0, "other_ccass": 0.58, "non_ccass": 32.83}, {"date": "2026-08-22", "ccass_total": 69.4, "southbound": 8.01, "foreign": 42.92, "chinese": 9.19, "local": 8.64, "mainland": 0.0, "other_ccass": 0.64, "non_ccass": 30.6}, {"date": "2026-08-29", "ccass_total": 69.4, "southbound": 9.02, "foreign": 41.73, "chinese": 9.43, "local": 8.57, "mainland": 0.0, "other_ccass": 0.65, "non_ccass": 30.6}, {"date": "2026-08-31", "ccass_total": 69.4, "southbound": 9.81, "foreign": 40.99, "chinese": 9.37, "local": 8.56, "mainland": 0.0, "other_ccass": 0.67, "non_ccass": 30.6}, {"date": "2026-09-12", "ccass_total": 70.61, "southbound": 10.7, "foreign": 41.88, "chinese": 8.72, "local": 8.73, "mainland": 0.0, "other_ccass": 0.58, "non_ccass": 29.39}, {"date": "2026-09-19", "ccass_total": 70.61, "southbound": 10.58, "foreign": 41.3, "chinese": 8.84, "local": 9.28, "mainland": 0.0, "other_ccass": 0.61, "non_ccass": 29.39}, {"date": "2026-09-25", "ccass_total": 70.61, "southbound": 10.25, "foreign": 41.82, "chinese": 8.8, "local": 9.19, "mainland": 0.0, "other_ccass": 0.55, "non_ccass": 29.39}, {"date": "2026-10-03", "ccass_total": 69.86, "southbound": 10.28, "foreign": 40.86, "chinese": 8.84, "local": 9.28, "mainland": 0.0, "other_ccass": 0.6, "non_ccass": 30.14}, {"date": "2026-10-10", "ccass_total": 70.78, "southbound": 10.47, "foreign": 40.35, "chinese": 8.94, "local": 10.4, "mainland": 0.0, "other_ccass": 0.62, "non_ccass": 29.22}], "southbound_daily": [{"date": "2026-08-10", "shares": 9344160, "ratio": 2.67}, {"date": "2026-08-13", "shares": 20074580, "ratio": 5.73}, {"date": "2026-08-19", "shares": 27852680, "ratio": 7.97}, {"date": "2026-08-24", "shares": 28337960, "ratio": 8.1}, {"date": "2026-08-28", "shares": 31519700, "ratio": 9.02}, {"date": "2026-09-02", "shares": 32809034, "ratio": 9.38}, {"date": "2026-09-08", "shares": 39659611, "ratio": 11.35}, {"date": "2026-09-11", "shares": 37400741, "ratio": 10.7}, {"date": "2026-09-17", "shares": 34927091, "ratio": 9.99}, {"date": "2026-09-22", "shares": 35151131, "ratio": 10.05}, {"date": "2026-09-29", "shares": 36006746, "ratio": 10.3}, {"date": "2026-10-09", "shares": 36931166, "ratio": 10.47}, {"date": "2026-10-09", "shares": 36931166, "ratio": 10.47}], "in_stock_connect": true, "verification_ok": true}]};
+
+var CATS = [
+  ["southbound", "南向资金", "var(--kimi-chart-2)", 1],
+  ["foreign", "外资", "var(--kimi-chart-1)", 1],
+  ["chinese", "中资", "var(--kimi-chart-4)", 1],
+  ["local", "香港本地", "var(--kimi-chart-5)", 1],
+  ["mainland", "境内股东H股", "var(--kimi-chart-2)", 0.45],
+  ["other_ccass", "其他中介", "var(--kimi-chart-5)", 0.4],
+  ["non_ccass", "未入CCASS", "var(--kimi-chart-5)", 0.15]
+];
+var TREND_CATS = CATS.slice(0, 5);
+var SVG_NS = "http://www.w3.org/2000/svg";
+var selectedCode = null;
+var currentData = null;
+var trendMode = "monthly";
+var normMode = "issued";  // issued=占已发行股份, ccass=占CCASS托管
+
+function saveViewState() {
+  try {
+    localStorage.setItem("hkHoldingsView", JSON.stringify({ code: selectedCode, trend: trendMode, norm: normMode }));
+  } catch (e) {}
+}
+
+// 口径归一：ccass 模式下各类占比除以当期托管比例
+function normVal(v, tot) {
+  return (normMode === "ccass" && tot > 0) ? v / tot * 100 : v;
+}
+function normLabel() { return normMode === "ccass" ? "占 CCASS 托管" : "占已发行股份"; }
+
+function fmtPct(v) { return (v == null ? "—" : Number(v).toFixed(2) + "%"); }
+function fmtShares(v) {
+  if (v == null) return "—";
+  var e = v / 1e8;
+  return (e >= 100 ? e.toFixed(0) : e.toFixed(2)) + " 亿股";
+}
+function el(tag, cls, text) {
+  var d = document.createElement(tag);
+  if (cls) d.className = cls;
+  if (text != null) d.textContent = text;
+  return d;
+}
+function svgEl(tag, attrs) {
+  var n = document.createElementNS(SVG_NS, tag);
+  for (var k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+function catInfo(key) {
+  for (var i = 0; i < CATS.length; i++) if (CATS[i][0] === key) return CATS[i];
+  return [key, key, "var(--kimi-chart-5)", 0.5];
+}
+function swatch(color, opacity, cls) {
+  var s = el("span", cls || "sw");
+  s.style.background = color;
+  if (opacity != null && opacity < 1) s.style.opacity = opacity;
+  return s;
+}
+
+function fmtSharesShort(v) {
+  if (v == null) return "";
+  return v >= 1e8 ? "约" + (v / 1e8).toFixed(2) + "亿股" : "约" + Math.round(v / 1e4) + "万股";
+}
+
+// 限售解禁标签：未来 30 天内有解禁则亮起；到期天数按当天日期实时计算，不依赖任务运行
+var badgeTipEl = null;
+function hideBadgeTip() {
+  if (badgeTipEl) { badgeTipEl.remove(); badgeTipEl = null; }
+}
+function showBadgeTip(target, text) {
+  hideBadgeTip();
+  var app = document.getElementById("app");
+  if (!app) return;
+  var d = el("div", "chart-tip badge-tip");
+  d.style.position = "fixed";
+  d.style.display = "block";
+  d.textContent = text;
+  app.appendChild(d);
+  var r = target.getBoundingClientRect();
+  var left = r.left;
+  if (left + d.offsetWidth > window.innerWidth - 8) left = Math.max(8, window.innerWidth - d.offsetWidth - 8);
+  d.style.left = left + "px";
+  d.style.top = (r.bottom + 6) + "px";
+  badgeTipEl = d;
+}
+
+function lockupBadge(lockups) {
+  var now = new Date();
+  var todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  var upcoming = (lockups || []).filter(function (l) {
+    return l && l.date && Date.parse(l.date + "T00:00:00Z") >= todayUtc;
+  }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  var next = upcoming[0];
+  var days = next ? Math.round((Date.parse(next.date + "T00:00:00Z") - todayUtc) / 86400000) : null;
+  var soon = days != null && days <= 30;
+  var badge = el("span", "kimi-status" + (soon ? " kimi-status--warning" : ""), soon ? "限售解禁 · " + days + " 天" : "限售解禁");
+  badge.style.alignSelf = "center";
+  var text;
+  if (!next) {
+    text = "近期无限售解禁";
+  } else {
+    text = "未来 " + days + " 天有限售解禁（" + next.date + "）" +
+      (next.shares ? "，" + fmtSharesShort(next.shares) : "") +
+      (next.note ? "：" + next.note : "");
+    if (upcoming.length > 1) {
+      text += "\n此后还有：" + upcoming.slice(1).map(function (l) { return l.date; }).join("、");
+    }
+  }
+  badge.title = text;
+  badge.style.cursor = "default";
+  badge.addEventListener("mouseenter", function () { showBadgeTip(badge, text); });
+  badge.addEventListener("mouseleave", hideBadgeTip);
+  return badge;
+}
+
+/* ---------- 各区块渲染 ---------- */
+
+function renderStack(cur) {
+  var sec = el("div", "section");
+  sec.appendChild(el("div", "section-title", "当前资金结构（" + normLabel() + "）"));
+  var b = cur.buckets || {};
+  var tot = cur.ccass_total_pct > 0 ? cur.ccass_total_pct : 100;
+  var cats = normMode === "ccass" ? CATS.slice(0, 6) : CATS;  // 托管口径下无「未入CCASS」
+  var bar = el("div", "stack-bar");
+  cats.forEach(function (c) {
+    var v = normVal(b[c[0]] || 0, tot);
+    if (v <= 0) return;
+    var seg = el("div");
+    seg.style.width = v + "%";
+    seg.style.background = c[2];
+    if (c[3] < 1) seg.style.opacity = c[3];
+    seg.title = c[1] + " " + fmtPct(v);
+    bar.appendChild(seg);
+  });
+  sec.appendChild(bar);
+  var lg = el("div", "legend");
+  cats.forEach(function (c) {
+    var v = normVal(b[c[0]] || 0, tot);
+    var li = el("div", "li");
+    li.appendChild(swatch(c[2], c[3]));
+    li.appendChild(el("span", null, c[1]));
+    li.appendChild(el("span", "num", fmtPct(v)));
+    lg.appendChild(li);
+  });
+  sec.appendChild(lg);
+  return sec;
+}
+
+function renderTrend(stock) {
+  var sec = el("div", "section");
+  var head = el("div", "trend-head");
+  head.appendChild(el("div", "section-title", (trendMode === "weekly" ? "周度趋势（近 12 周" : "月度趋势（近 12 个月") + " · " + normLabel() + "）"));
+  var seg = el("div", "kimi-segmented");
+  seg.setAttribute("aria-label", "趋势颗粒度");
+  [["monthly", "月度"], ["weekly", "周度"]].forEach(function (kv) {
+    var b = el("button", "kimi-chip", kv[1]);
+    b.setAttribute("aria-pressed", trendMode === kv[0] ? "true" : "false");
+    b.addEventListener("click", function () {
+      trendMode = kv[0];
+      saveViewState();
+      render(currentData);
+    });
+    seg.appendChild(b);
+  });
+  head.appendChild(seg);
+  sec.appendChild(head);
+
+  var series = (trendMode === "weekly" ? stock.weekly_series : stock.series) || [];
+  // 周度只取最近 12 周（84 天窗口，以序列最后一个点为锚），与管道输出口径一致；
+  // 旧版本 artifact 未截断，这里兜底过滤保证显示正确
+  if (trendMode === "weekly" && series.length) {
+    var tEnd = Date.parse(series[series.length - 1].date + "T00:00:00Z");
+    series = series.filter(function (r) { return Date.parse(r.date + "T00:00:00Z") >= tEnd - 83 * 86400000; });
+  }
+  if (series.length < 2) { sec.appendChild(el("div", "empty", "历史数据不足")); return sec; }
+
+  // 托管口径：各类占比除以每期 CCASS 托管比例；旧 artifact 缺 ccass_total 时用当前托管比例近似
+  if (normMode === "ccass") {
+    series = series.map(function (r) {
+      var t = r.ccass_total > 0 ? r.ccass_total : ((stock.current && stock.current.ccass_total_pct) || 100);
+      var o = { date: r.date };
+      TREND_CATS.forEach(function (c) { o[c[0]] = (r[c[0]] || 0) / t * 100; });
+      return o;
+    });
+  }
+
+  var lg = el("div", "chart-legend");
+  TREND_CATS.forEach(function (c) {
+    var li = el("span", "li");
+    li.appendChild(swatch(c[2], c[3]));
+    li.appendChild(el("span", null, c[1]));
+    lg.appendChild(li);
+  });
+  sec.appendChild(lg);
+
+  var W = 680, H = 190, P = { l: 40, r: 8, t: 10, b: 22 };
+  var maxV = 0;
+  series.forEach(function (r) { TREND_CATS.forEach(function (c) { maxV = Math.max(maxV, r[c[0]] || 0); }); });
+  var yMax = Math.max(10, Math.ceil(maxV / 20) * 20);
+  var iw = W - P.l - P.r, ih = H - P.t - P.b;
+  // 周度按真实时间轴绘制（点间距反映实际日期间隔），月度按等距索引
+  var ts = series.map(function (r) { return Date.parse(r.date + "T00:00:00Z"); });
+  var t0 = ts[0], t1 = ts[ts.length - 1];
+  var x;
+  if (trendMode === "weekly") {
+    x = function (i) { return P.l + iw * (t1 === t0 ? 0.5 : (ts[i] - t0) / (t1 - t0)); };
+  } else {
+    x = function (i) { return P.l + iw * (series.length === 1 ? 0.5 : i / (series.length - 1)); };
+  }
+  var y = function (v) { return P.t + ih * (1 - v / yMax); };
+
+  var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": trendMode === "weekly" ? "持仓结构周度趋势" : "持仓结构月度趋势" });
+  for (var g = 0; g <= 4; g++) {
+    var gv = yMax * g / 4, gy = y(gv);
+    svg.appendChild(svgEl("line", { x1: P.l, x2: W - P.r, y1: gy, y2: gy, "class": "grid-line", "stroke-width": 1 }));
+    var t = svgEl("text", { x: P.l - 6, y: gy + 4, "text-anchor": "end", "font-size": 11, "class": "kimi-svg-text-secondary" });
+    t.textContent = gv + "%";
+    svg.appendChild(t);
+  }
+  [0, Math.floor((series.length - 1) / 2), series.length - 1].forEach(function (i) {
+    var t = svgEl("text", { x: x(i), y: H - 6, "text-anchor": "middle", "font-size": 11, "class": "kimi-svg-text-secondary" });
+    t.textContent = (series[i].date || "").slice(0, 7);
+    svg.appendChild(t);
+  });
+  var STROKE_CLS = [2, 1, 4, 5, 2];
+  [0, 2, 3, 4, 1].forEach(function (ci) {  // 外资最后绘制，压在其他线之上
+    var c = TREND_CATS[ci];
+    var pts = series.map(function (r, i) { return x(i).toFixed(1) + "," + y(r[c[0]] || 0).toFixed(1); }).join(" ");
+    var pl = svgEl("polyline", { points: pts, fill: "none", "stroke-width": c[0] === "foreign" ? 2.6 : 1.8, "stroke-linejoin": "round", "stroke-linecap": "round", "class": "st-" + STROKE_CLS[ci] });
+    if (c[3] < 1) { pl.setAttribute("stroke-opacity", c[3]); pl.setAttribute("stroke-dasharray", "5 3"); }
+    svg.appendChild(pl);
+  });
+  // 悬浮交互：透明热区 + 竖向参考线 + 各系列高亮点 + 跟随浮层
+  var guide = svgEl("line", { y1: P.t, y2: P.t + ih, "class": "grid-line", "stroke-width": 1, "stroke-dasharray": "3 3", visibility: "hidden" });
+  svg.appendChild(guide);
+  var dots = TREND_CATS.map(function (c, ci) {
+    var d = svgEl("circle", { r: 3.2, visibility: "hidden" });
+    d.style.fill = c[2];
+    if (c[3] < 1) d.setAttribute("fill-opacity", c[3]);
+    svg.appendChild(d);
+    return d;
+  });
+  var overlay = svgEl("rect", { x: P.l, y: P.t, width: iw, height: ih, fill: "transparent" });
+  svg.appendChild(overlay);
+
+  var wrap = el("div", "chart-wrap");
+  wrap.appendChild(svg);
+  var tip = el("div", "chart-tip");
+  wrap.appendChild(tip);
+
+  overlay.addEventListener("mousemove", function (ev) {
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    var mx = (ev.clientX - rect.left) / rect.width * W;
+    var i = 0, bd = 1e18;
+    for (var k = 0; k < series.length; k++) {
+      var dd = Math.abs(x(k) - mx);
+      if (dd < bd) { bd = dd; i = k; }
+    }
+    guide.setAttribute("x1", x(i)); guide.setAttribute("x2", x(i));
+    guide.setAttribute("visibility", "visible");
+    dots.forEach(function (d, ci) {
+      d.setAttribute("cx", x(i));
+      d.setAttribute("cy", y(series[i][TREND_CATS[ci][0]] || 0));
+      d.setAttribute("visibility", "visible");
+    });
+    var html = '<div class="tip-date">' + series[i].date + '</div>';
+    TREND_CATS.forEach(function (c) {
+      html += '<div class="tip-row"><span class="sw" style="background:' + c[2] + ';opacity:' + c[3] + '"></span><span>' + c[1] + '</span><span class="num">' + fmtPct(series[i][c[0]]) + '</span></div>';
+    });
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    var px = x(i) / W * rect.width;
+    var left = px + 12;
+    if (left + tip.offsetWidth > rect.width - 4) left = px - tip.offsetWidth - 12;
+    tip.style.left = left + "px";
+    tip.style.top = Math.max((ev.clientY - rect.top) - 10, 0) + "px";
+  });
+  overlay.addEventListener("mouseleave", function () {
+    tip.style.display = "none";
+    guide.setAttribute("visibility", "hidden");
+    dots.forEach(function (d) { d.setAttribute("visibility", "hidden"); });
+  });
+
+  sec.appendChild(wrap);
+  return sec;
+}
+
+function renderSouthbound(daily) {
+  var sec = el("div", "section");
+  sec.appendChild(el("div", "section-title", "南向持股比例（日频 · 占已发行）"));
+  if (!daily || daily.length < 2) { sec.appendChild(el("div", "empty", "暂无南向数据")); return sec; }
+  var W = 680, H = 90, P = { l: 40, r: 8, t: 6, b: 18 };
+  var vals = daily.map(function (r) { return r.ratio; });
+  var minV = Math.min.apply(null, vals), maxV = Math.max.apply(null, vals);
+  var pad = Math.max((maxV - minV) * 0.15, 0.3);
+  minV = Math.max(0, minV - pad); maxV += pad;
+  var iw = W - P.l - P.r, ih = H - P.t - P.b;
+  var x = function (i) { return P.l + iw * i / (daily.length - 1); };
+  var y = function (v) { return P.t + ih * (1 - (v - minV) / (maxV - minV)); };
+  var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "南向持股比例日频走势" });
+  [minV, (minV + maxV) / 2, maxV].forEach(function (v) {
+    var t = svgEl("text", { x: P.l - 6, y: y(v) + 4, "text-anchor": "end", "font-size": 11, "class": "kimi-svg-text-secondary" });
+    t.textContent = v.toFixed(1) + "%";
+    svg.appendChild(t);
+  });
+  svg.appendChild(svgEl("line", { x1: P.l, x2: W - P.r, y1: y(minV), y2: y(minV), "class": "grid-line", "stroke-width": 1 }));
+  var pts = daily.map(function (r, i) { return x(i).toFixed(1) + "," + y(r.ratio).toFixed(1); }).join(" ");
+  svg.appendChild(svgEl("polyline", { points: pts, fill: "none", "stroke-width": 1.8, "stroke-linejoin": "round", "class": "st-2" }));
+  [0, daily.length - 1].forEach(function (i) {
+    var t = svgEl("text", { x: x(i), y: H - 4, "text-anchor": i === 0 ? "start" : "end", "font-size": 11, "class": "kimi-svg-text-secondary" });
+    t.textContent = (daily[i].date || "").slice(0, 7);
+    svg.appendChild(t);
+  });
+  sec.appendChild(svg);
+  return sec;
+}
+
+function renderTop(top) {
+  var sec = el("div", "section");
+  sec.appendChild(el("div", "section-title", "前 12 大中介席位"));
+  if (!top || !top.length) { sec.appendChild(el("div", "empty", "暂无数据")); return sec; }
+  var sc = el("div", "table-scroll");
+  var tb = el("table");
+  var hd = el("thead");
+  var htr = el("tr");
+  ["中介", "类别", "占比", "持股数"].forEach(function (h, i) {
+    htr.appendChild(el("th", i >= 2 ? "num" : null, h));
+  });
+  hd.appendChild(htr); tb.appendChild(hd);
+  var body = el("tbody");
+  top.forEach(function (r) {
+    var c = catInfo(r.cat);
+    var tr = el("tr");
+    var tdN = el("td"); tdN.appendChild(el("span", "nm", r.name)); tr.appendChild(tdN);
+    var tdC = el("td");
+    var cat = el("span", "cat");
+    cat.appendChild(swatch(c[2], c[3]));
+    cat.appendChild(el("span", null, c[1]));
+    tdC.appendChild(cat); tr.appendChild(tdC);
+    tr.appendChild(el("td", "num", fmtPct(r.pct)));
+    tr.appendChild(el("td", "num", fmtShares(r.shares)));
+    body.appendChild(tr);
+  });
+  tb.appendChild(body); sc.appendChild(tb); sec.appendChild(sc);
+  return sec;
+}
+
+/* ---------- 主渲染 ---------- */
+
+function render(data) {
+  var app = document.getElementById("app");
+  if (!app) return;
+  hideBadgeTip();
+  currentData = data;
+  var stocks = (data && data.stocks) || [];
+  var headSub = document.getElementById("headSub");
+  var chips = document.getElementById("chips");
+  var body = document.getElementById("body");
+  if (!stocks.length) { headSub.textContent = "暂无数据"; return; }
+
+  if (!selectedCode || !stocks.some(function (s) { return s.code === selectedCode; })) {
+    selectedCode = stocks[0].code;
+  }
+  var st = null;
+  stocks.forEach(function (s) { if (s.code === selectedCode) st = s; });
+
+  var s = st;
+  var sub = "数据更新 " + (data.updated || "—");
+  if (s.current && s.current.date) sub += " · 持股日期 " + s.current.date;
+  if (s.verification_ok === true) sub += " · 南向交叉校验通过";
+  else if (s.verification_ok === false) sub += " · 南向校验存在偏差";
+  headSub.textContent = sub;
+
+  chips.textContent = "";
+  stocks.forEach(function (it) {
+    var b = el("button", "kimi-chip", it.name + " " + it.code);
+    b.setAttribute("aria-pressed", it.code === selectedCode ? "true" : "false");
+    b.addEventListener("click", function () {
+      selectedCode = it.code;
+      saveViewState();
+      render(currentData);
+    });
+    chips.appendChild(b);
+  });
+
+  body.textContent = "";
+  if (!s.current) { body.appendChild(el("div", "empty", "该股票暂无 CCASS 数据")); return; }
+
+  // 结构口径切换：占已发行 / 占托管（联动堆叠条、趋势图、浮层与顶部数字）
+  var normRow = el("div", "trend-head");
+  normRow.style.marginTop = "var(--kimi-space-3)";
+  normRow.appendChild(el("span", "kimi-meta", "结构口径"));
+  var nseg = el("div", "kimi-segmented");
+  nseg.setAttribute("aria-label", "结构口径");
+  [["issued", "占已发行"], ["ccass", "占托管"]].forEach(function (kv) {
+    var nb = el("button", "kimi-chip", kv[1]);
+    nb.setAttribute("aria-pressed", normMode === kv[0] ? "true" : "false");
+    nb.addEventListener("click", function () {
+      normMode = kv[0];
+      saveViewState();
+      render(currentData);
+    });
+    nseg.appendChild(nb);
+  });
+  normRow.appendChild(nseg);
+  body.appendChild(normRow);
+
+  var tot = s.current.ccass_total_pct > 0 ? s.current.ccass_total_pct : 100;
+  var bk = s.current.buckets || {};
+  var shortNorm = normMode === "ccass" ? "占托管" : "占已发行";
+  var meta = el("div", "meta-row");
+  [["CCASS 托管比例", fmtPct(s.current.ccass_total_pct)],
+   ["南向持股 · " + shortNorm, fmtPct(normVal(bk.southbound, tot))],
+   ["外资持股 · " + shortNorm, fmtPct(normVal(bk.foreign, tot))],
+   ["已发行股份", fmtShares(s.current.issued)]
+  ].forEach(function (kv) {
+    var it = el("div", "meta-item");
+    it.appendChild(el("div", "v", kv[1]));
+    it.appendChild(el("div", "k", kv[0]));
+    meta.appendChild(it);
+  });
+  if (s.in_stock_connect) {
+    var badge = el("span", "kimi-status kimi-status--accent", "港股通标的");
+    badge.style.alignSelf = "center";
+    meta.appendChild(badge);
+  }
+  meta.appendChild(lockupBadge(s.lockups));
+  body.appendChild(meta);
+
+  body.appendChild(renderStack(s.current));
+  body.appendChild(renderTrend(s));
+  if (s.in_stock_connect) body.appendChild(renderSouthbound(s.southbound_daily));
+  body.appendChild(renderTop(s.current.top));
+
+  var foot = el("div", "foot", "中介席位变动不等于真实买卖，趋势解读以类别汇总为准。数据来源：港交所 CCASS、东方财富港股通。仅供参考，不构成投资建议。");
+  body.appendChild(foot);
+}
+
+function safeRender(d) { try { render(d); } catch (e) {} }
+
+function boot() {
+  // 恢复上次的界面选择（股票 / 颗粒度 / 口径）
+  try {
+    var vs = JSON.parse(localStorage.getItem("hkHoldingsView") || "{}");
+    if (vs.code) selectedCode = vs.code;
+    if (vs.trend === "weekly" || vs.trend === "monthly") trendMode = vs.trend;
+    if (vs.norm === "ccass" || vs.norm === "issued") normMode = vs.norm;
+  } catch (e) {}
+  // 先渲染内联兜底数据（直接双击打开 html 时也能正常显示），再按「云端 → 站内文件」顺序拉取最新数据
+  safeRender(FALLBACK_DATA);
+  if (typeof fetch !== "function") return;
+  // 云端数据源：GitHub 每周一自动更新。raw 最及时（约5分钟缓存），jsDelivr 为备用镜像
+  var REMOTE = [
+    "https://raw.githubusercontent.com/Tomahawkgit/hk-holdings-tracker/main/widget_data.json",
+    "https://cdn.jsdelivr.net/gh/Tomahawkgit/hk-holdings-tracker@main/widget_data.json"
+  ];
+  function valid(d) { return d && d.stocks && d.stocks.length; }
+  function loadLocal() {
+    fetch("widget_data.json", { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.json();
+    }).then(function (d) {
+      if (valid(d)) safeRender(d);
+    }).catch(function () { /* 保持兜底数据 */ });
+  }
+  function loadRemote(i) {
+    if (i >= REMOTE.length) { loadLocal(); return; }
+    fetch(REMOTE[i] + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.json();
+    }).then(function (d) {
+      if (valid(d)) safeRender(d); else loadRemote(i + 1);
+    }).catch(function () { loadRemote(i + 1); });
+  }
+  loadRemote(0);
+}
+boot();
+</script>
+</body>
+</html>
