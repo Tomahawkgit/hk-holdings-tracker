@@ -626,8 +626,8 @@ function boot() {
   if (typeof fetch !== "function") return;
   // 云端数据源：GitHub 每周一自动更新。raw 最及时（约5分钟缓存），jsDelivr 为备用镜像
   var REMOTE = [
-    "https://raw.githubusercontent.com/Tomahawkgit/hk-holdings-tracker/main/widget_data.json",
-    "https://cdn.jsdelivr.net/gh/Tomahawkgit/hk-holdings-tracker@main/widget_data.json"
+    "https://raw.githubusercontent.com/Tomahawkgit/hk-holdings-tracker/main/hshare/widget_data.json",
+    "https://cdn.jsdelivr.net/gh/Tomahawkgit/hk-holdings-tracker@main/hshare/widget_data.json"
   ];
   function valid(d) { return d && d.stocks && d.stocks.length; }
   function loadLocal() {
