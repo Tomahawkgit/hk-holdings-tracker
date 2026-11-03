@@ -3,17 +3,21 @@
 
 同一 ISO 周已有快照（含月末回填点、周度任务点）则跳过，支持断点续跑。
 用法：
-  python backfill_weekly.py          # 全部股票
-  python backfill_weekly.py 01024    # 单只（超时可重跑，自动续）
+  python scripts/backfill_weekly.py          # 全部股票
+  python scripts/backfill_weekly.py 01024    # 单只（超时可重跑，自动续）
 """
-import json, os, sys, time
+import os
+import sys
+import time
 from datetime import date as dt_date, timedelta
 
-import build_dataset as bd
-from ccass_fetch import fetch_ccass
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-CFG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
+import build_dataset as bd
+from config import load_config
+from fetch import fetch_ccass
+
+CFG = load_config()
 INTERVAL = CFG.get("request_interval_sec", 2.0)
 WEEKS = 12
 

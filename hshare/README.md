@@ -18,11 +18,11 @@
 
 ## 数据来源与归类口径
 
-1. **CCASS 持股纪录**（港交所披露易）：`ccass_fetch.py` 直连查询表单，
+1. **CCASS 持股纪录**（港交所披露易）：`fetch.py` 直连查询表单，
    按「参与者」逐行解析持股比例。CCASS 网页只保留近 12 个月，
    本工具包每周落盘快照（`data/{code}/ccass_{date}.csv`），即自建历史档案。
-2. **南向持股**（东方财富港股通接口）：`southbound_fetch.py`，日频全历史。
-3. **参与者归类**（`classify.py` + `participant_map.csv` 字典，452 条已归类）：
+2. **南向持股**（东方财富港股通接口）：`fetch.py`，日频全历史。
+3. **参与者归类**（`classify.py` + `participant_map.csv` 字典，454 条已归类）：
    - `southbound` 南向资金：中国结算（港股通）A00003/A00004
    - `mainland` 境内股东H股：中国结算香港托管的境内股东持股（A00005，非交易性）
    - `foreign` 外资：汇丰、花旗、摩根大通、高盛等国际托管行/券商
@@ -35,16 +35,18 @@
 
 | 文件 | 作用 |
 |---|---|
-| `config.json` | 跟踪名单 |
-| `ccass_fetch.py` | CCASS 快照抓取（POST 回传表单） |
-| `southbound_fetch.py` | 东财南向持股日频抓取 |
-| `classify.py` | 参与者归类规则 + 字典持久化 |
-| `participant_map.csv` | 参与者归类字典（可手工修订后跑 reclassify.py） |
-| `build_dataset.py` | 全量回填 / 单票处理 / 合并产出 |
-| `combine_offline.py` | 离线重建 widget_data.json（不访问 CCASS） |
-| `reclassify.py` | 改归类规则后重建全部汇总 |
+| `config.json` | 跟踪名单 + 接口 + 限速 |
+| `config.py` | 路径 BASE 与 config.json 加载单点 |
+| `fetch.py` | CCASS 快照 + 东财南向持股取数（含共享重试/退避） |
+| `classify.py` | 参与者归类规则 + 字典持久化（内存缓存） |
+| `participant_map.csv` | 参与者归类字典（可手工修订后跑 scripts/reclassify.py） |
+| `build_dataset.py` | 全量回填 / 单票处理 / 桶汇总 / 合并产出 |
 | `run_weekly.py` | 每周增量更新核心逻辑（失败自动回退本地数据） |
 | `weekly_job.py` | **定时任务入口**（自动化运行器调用，输出 artifact） |
+| `scripts/combine_offline.py` | 离线重建 widget_data.json（不访问 CCASS） |
+| `scripts/reclassify.py` | 改归类规则后重建全部汇总 |
+| `scripts/backfill_weekly.py` | 一次性回填近 12 个 ISO 周快照 |
+| `scripts/test_fetch_offline.py` | 离线回归测试（本地 fixture 锁住解析函数） |
 | `widget_data.json` | 小组件数据文件（当前+月度序列+南向日频+中介明细） |
 | `data/{code}/` | 每股快照 CSV 与月度汇总 monthly.csv |
 | `run_log.txt` | 每周运行日志 |
@@ -62,12 +64,14 @@
 ## 手动操作
 
 ```bash
-cd hk-holdings-tracker
-python weekly_job.py            # 等价于一次定时任务
-python run_weekly.py            # 只做增量更新，不产出 artifact
-python combine_offline.py       # 离线重建 widget_data.json
-python build_dataset.py 01024   # 单票全量回填（12 个月）
-python reclassify.py            # 改归类规则后重建
+cd hk-holdings-tracker/hshare
+python weekly_job.py                      # 等价于一次定时任务
+python run_weekly.py                      # 只做增量更新，不产出 artifact
+python scripts/combine_offline.py         # 离线重建 widget_data.json
+python build_dataset.py 01024             # 单票全量回填（12 个月）
+python scripts/reclassify.py              # 改归类规则后重建
+python scripts/backfill_weekly.py         # 一次性回填近 12 个 ISO 周
+python scripts/test_fetch_offline.py      # 离线回归测试
 ```
 
 依赖：Python 3.8+，`requests`、`beautifulsoup4`（Kimi Work 托管 Python 已自带）。

@@ -38,8 +38,8 @@ def run(ctx=None):
     base = _resolve_base()
     if base not in sys.path:
         sys.path.insert(0, base)
-    # run_weekly 内部 import build_dataset / southbound_fetch，先预加载确保按绝对路径解析
-    for mod in ("southbound_fetch", "ccass_fetch", "classify", "build_dataset", "run_weekly"):
+    # run_weekly 内部 import fetch / build_dataset，先预加载确保按绝对路径解析
+    for mod in ("config", "fetch", "classify", "build_dataset", "run_weekly"):
         if mod not in sys.modules:
             _load(mod, base)
     sys.modules["run_weekly"].run()

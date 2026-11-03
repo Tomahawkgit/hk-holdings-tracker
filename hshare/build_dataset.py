@@ -5,16 +5,21 @@
   python3 build_dataset.py            # 全部股票回填（首次）
   python3 build_dataset.py 01024      # 单只
 """
-import csv, json, os, sys, time
+import csv
+import json
+import os
+import sys
+import time
 from datetime import date as dt_date
 
 import classify
-from ccass_fetch import fetch_ccass
-from southbound_fetch import fetch_southbound_daily
+from config import BASE, load_config
+from fetch import fetch_ccass, fetch_southbound_daily
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-CFG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
+CFG = load_config()
 INTERVAL = CFG.get("request_interval_sec", 2.0)
+
+CAT_KEYS = ("southbound", "foreign", "chinese", "local", "mainland")
 
 
 def data_dir(code):
@@ -40,25 +45,48 @@ def month_ends(n=12):
     return list(reversed(out))
 
 
+def _raw_buckets(cat_pcts):
+    buckets = {k: 0.0 for k in CAT_KEYS}
+    for cat, pct in cat_pcts:
+        buckets[cat] = buckets.get(cat, 0.0) + pct
+    return buckets
+
+
+def aggregate_buckets(cat_pcts, ccass_total):
+    """五类汇总 + other_ccass/non_ccass 兜底桶。顺序与原逻辑一致：先算兜底、再四舍五入五类。"""
+    buckets = _raw_buckets(cat_pcts)
+    raw_sum = sum(buckets.values())
+    ccass_total = ccass_total or raw_sum
+    buckets["other_ccass"] = round(max(ccass_total - raw_sum, 0.0), 2)
+    buckets["non_ccass"] = round(max(100.0 - ccass_total, 0.0), 2)
+    for k in CAT_KEYS:
+        buckets[k] = round(buckets[k], 2)
+    return buckets
+
+
+def sum_categories(cat_pcts):
+    """仅汇总并四舍五入五类（不含 other/non），供 load_snapshot_from_csv 使用。"""
+    buckets = _raw_buckets(cat_pcts)
+    for k in CAT_KEYS:
+        buckets[k] = round(buckets[k], 2)
+    return buckets
+
+
 def save_snapshot(code, snap):
     """快照原始行落盘 + 归类汇总，返回 bucket dict。"""
     d = data_dir(code)
     path = os.path.join(d, f"ccass_{snap['date']}.csv")
-    buckets = {"southbound": 0.0, "foreign": 0.0, "chinese": 0.0, "local": 0.0, "mainland": 0.0}
     top = []
+    cat_pcts = []
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["participant_code", "name", "category", "shares", "pct"])
         for pcode, name, shares, pct in snap["rows"]:
             cat = classify.classify(pcode, name)
-            buckets[cat] += pct
+            cat_pcts.append((cat, pct))
             w.writerow([pcode, name, cat, shares, pct])
             top.append({"name": name, "cat": cat, "pct": pct, "shares": shares})
-    ccass_total = snap["ccass_total_pct"] or sum(buckets.values())
-    buckets["other_ccass"] = round(max(ccass_total - sum(buckets.values()), 0), 2)
-    buckets["non_ccass"] = round(max(100 - ccass_total, 0), 2)
-    for k in ("southbound", "foreign", "chinese", "local", "mainland"):
-        buckets[k] = round(buckets[k], 2)
+    buckets = aggregate_buckets(cat_pcts, snap["ccass_total_pct"])
     return buckets, sorted(top, key=lambda x: -x["pct"])[:12]
 
 
@@ -85,18 +113,17 @@ def update_monthly_csv(code, snap, buckets):
 def load_snapshot_from_csv(code, date):
     """从已落盘的快照 CSV 重建 buckets 与 top（用于 latest 已存在时）。"""
     path = os.path.join(data_dir(code), f"ccass_{date}.csv")
-    buckets = {"southbound": 0.0, "foreign": 0.0, "chinese": 0.0, "local": 0.0, "mainland": 0.0}
+    cat_pcts = []
     top = []
     with open(path, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
-            buckets[r["category"]] += float(r["pct"])
+            cat_pcts.append((r["category"], float(r["pct"])))
             top.append({"name": r["name"], "cat": r["category"], "pct": float(r["pct"]), "shares": int(r["shares"])})
+    buckets = sum_categories(cat_pcts)
     row = next((r for r in read_monthly(code) if r["date"] == date), None)
     if row:
         buckets["other_ccass"] = float(row["other_ccass"])
         buckets["non_ccass"] = float(row["non_ccass"])
-    for k in ("southbound", "foreign", "chinese", "local", "mainland"):
-        buckets[k] = round(buckets[k], 2)
     return buckets, sorted(top, key=lambda x: -x["pct"])[:12]
 
 
@@ -220,6 +247,28 @@ def build_widget_data(results):
     json.dump(out, open(path, "w", encoding="utf-8"), ensure_ascii=False)
     print("widget_data.json written,", os.path.getsize(path), "bytes")
     return out
+
+
+def build_local_latest(code, include_southbound=True):
+    """从本地已落盘数据重建 latest（不访问 CCASS）。返回 (latest, sb_daily)。
+
+    南向数据可选重拉（轻量），失败回退空列表。run_weekly 的失败回退与 combine_offline 共用此函数。
+    """
+    monthly = read_monthly(code)
+    if not monthly:
+        return None, []
+    last = monthly[-1]
+    buckets, top = load_snapshot_from_csv(code, last["date"])
+    latest = {"date": last["date"], "issued": int(last["issued"]),
+              "ccass_total_pct": float(last["ccass_total_pct"]),
+              "_buckets": buckets, "_top": top}
+    sb_daily = []
+    if include_southbound:
+        try:
+            sb_daily = fetch_southbound_daily(code)
+        except Exception:
+            sb_daily = []
+    return latest, sb_daily
 
 
 if __name__ == "__main__":

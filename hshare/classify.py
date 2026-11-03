@@ -8,7 +8,8 @@ participant_map.csv 为持久字典：code,name,category,source(manual/auto)
 """
 import csv, os
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+from config import BASE
+
 MAP_FILE = os.path.join(BASE, "participant_map.csv")
 REVIEW_LOG = os.path.join(BASE, "unmapped_review.log")
 
@@ -48,13 +49,25 @@ SOUTHBOUND_CODES = {"A00003", "A00004"}
 MAINLAND_CODES = {"A00005"}  # 中国结算(香港)：H股全流通/境内股东H股托管账户
 
 
+_map = None
+
+
 def _load_map():
-    m = {}
-    if os.path.exists(MAP_FILE):
-        with open(MAP_FILE, encoding="utf-8-sig") as f:
-            for row in csv.DictReader(f):
-                m[row["code"]] = (row["name"], row["category"])
-    return m
+    global _map
+    if _map is None:
+        _map = {}
+        if os.path.exists(MAP_FILE):
+            with open(MAP_FILE, encoding="utf-8-sig") as f:
+                for row in csv.DictReader(f):
+                    _map[row["code"]] = (row["name"], row["category"])
+    return _map
+
+
+def reload_map():
+    """清空缓存并重新加载 participant_map.csv（reclassify 删文件后调用）。"""
+    global _map
+    _map = None
+    return _load_map()
 
 
 def _append_map(code, name, category, source="auto"):
@@ -86,6 +99,7 @@ def classify(code, name):
         return m[code][1]
     cat = _guess(name)
     _append_map(code, name, cat)
+    m[code] = (name, cat)
     if cat == "local":
         with open(REVIEW_LOG, "a", encoding="utf-8") as f:
             f.write(f"{code}\t{name}\tauto->local，请复核\n")
